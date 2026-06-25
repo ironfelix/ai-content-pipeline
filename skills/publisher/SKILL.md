@@ -29,7 +29,7 @@ else:
 Если `project.md` найден — использовать его значения везде в скрипте:
 ```python
 # Читать из project.md (значения — из соответствующих ключей файла):
-WP_URL = config["wp_url"]           # напр. https://YOUR_DOMAIN.ru
+WP_URL = config["wp_url"]           # напр. https://yoursite.ru
 WP_AUTH = (config["wp_user"], config["wp_password"])
 WP_POST_TYPE = config.get("wp_post_type", "post")
 WP_AUTHOR_ID = config.get("wp_author_id", 1)
@@ -39,7 +39,7 @@ BLOG_BANNER_END = config.get("blog_banner_end", "[blog-banner-form id=2666]")
 ```
 
 Если `project.md` НЕ найден → фолбэк на дефолты Фактора:
-- `WP_URL` = `https://YOUR_DOMAIN.ru`
+- `WP_URL` = `https://yoursite.ru`
 - `WP_AUTH` = `("YOUR_WP_USER", "YOUR_WP_APP_PASSWORD")`
 - `WP_POST_TYPE` = `blog`
 - `WP_AUTHOR_ID` = `523`
@@ -227,7 +227,7 @@ post_id = resp.json()["id"]
 - [ ] TOC-блок после лида, все H2 имеют `id`-якоря
 - [ ] Нет `[ПРОВЕРИТЬ]` и `[нужна деталь от клиента]` в тексте
 - [ ] **Тире (—): не более 8 в статье** — посчитать явно: `grep -o '—' file.html | wc -l`. Если больше 8 — вернуть в редактуру.
-- [ ] Есть кейс из YOUR_DOMAIN.ru/case/ с конкретными деталями
+- [ ] Есть кейс из yoursite.ru/case/ с конкретными деталями
 - [ ] Внутренние ссылки: 5–7 штук, анкоры описательные (не «здесь»/«подробнее»)
 - [ ] Минимум 1 ссылка на релевантную услугу (таблица в WP_BLOG_TECHNICAL.md раздел 14.2)
 - [ ] Списки 3+ однородных элементов → таблицы
@@ -256,11 +256,13 @@ post_id = resp.json()["id"]
 
 **Заменить на:**
 ```html
-<div style="background:#F9F9F6; border-left:3px solid #CC955B; border-radius:0 8px 8px 0; padding:16px 20px; margin:0 0 28px;">
+<div class="tl-dr" style="background:#F9F9F6; border-left:3px solid #CC955B; border-radius:0 8px 8px 0; padding:16px 20px; margin:0 0 28px;">
 <p style="margin:0 0 4px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:1.2px; color:#CC955B;">Кратко</p>
 <p style="margin:0; color:#252525; line-height:1.65;">[текст первого абзаца]</p>
 </div>
 ```
+
+**`class="tl-dr"` обязателен** — на него ссылается SpeakableSpecification (раздел I-2). Без класса голосовые ассистенты не знают, какой блок цитировать.
 
 **Если первый абзац — вода** («В этой статье мы рассмотрим...», «Многие предприниматели знают...») — **СТОП**, вернуть в `/editor`. Верстать такой лид нельзя — Google AI его не цитирует.
 
@@ -468,6 +470,34 @@ post_id = resp.json()["id"]
 
 **Никакого wrapper div, никаких inline-стилей на `<details>` и `<summary>`, никакого `<strong>` в summary** — тема faktor-template сама рендерит аккордеон. Проверено на /blog/5-etapov-prodazh-menedzhera-po-prodazham/ (эталон). Стили через `!important` и wrapper-div с `border-radius:8px; overflow:hidden` не работают — тема добавляет каждому `<details>` собственные border/radius и они рендерятся как отдельные боксы.
 
+### I-2. Schema-стек: Speakable + порядок внедрения
+
+**🔴 ОБЯЗАТЕЛЬНО:** вместе с FAQPage JSON-LD добавить SpeakableSpecification — указывает Google AI Overview и Яндекс Алисе, какой блок цитировать в голосовых ответах (65% голосовых поисков начинаются с вопроса).
+
+Вставить отдельным JSON-LD рядом с FAQPage:
+```html
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebPage",
+ "name":"<H1 статьи>",
+ "url":"<WP_URL>/blog/<slug>/",
+ "speakable":{"@type":"SpeakableSpecification","cssSelector":[".tl-dr","h2:first-of-type + p"]}}
+</script>
+```
+
+Селекторы: `.tl-dr` — лид-блок «Кратко» (раздел A-0), `h2:first-of-type + p` — первый абзац первого H2.
+
+**Порядок schema-стека (что добавлять и что НЕ добавлять):**
+
+⚠️ Ahrefs (май 2026, 1885 страниц): добавление generic JSON-LD даёт **−4,6%** в Google AI Overviews. Единственная schema с измеримым плюсом — **FAQPage (+2,7x)**. Поэтому:
+
+1. **FAQPage** — на каждой статье, всегда (уже в разделе I)
+2. **SpeakableSpecification** — на каждой статье (этот раздел)
+3. **Person** автора с полным `sameAs` — только как часть entity-стратегии, не per-статья
+4. **BreadcrumbList + @id** — для entity-графа, отдельная задача (бэклог #10)
+5. **Review/AggregateRating** — ТОЛЬКО при реальном рейтинге. Фейковый рейтинг = риск ручных санкций
+
+Не навешивать Article/Organization/HowTo «для галочки» — это и есть generic schema с отрицательным эффектом.
+
 ### J. Подзаголовки внутри секций
 
 `<p>Название:</p>` или `<p><strong>Название</strong></p>` между разделами текста → `<h3 id="anchor">Название</h3>`.
@@ -645,7 +675,7 @@ author_id:        523  (Кандеев по умолчанию)
 ```python
 import requests
 # WP_URL, WP_AUTH, WP_POST_TYPE, WP_AUTHOR_ID, REST_BASE — из project.md (Шаг 0)
-# Дефолты Фактора если project.md не найден: YOUR_DOMAIN.ru, YOUR_WP_USER, blog, 523
+# Дефолты Фактора если project.md не найден: yoursite.ru, YOUR_WP_USER, blog, 523
 url = f"{WP_URL}{REST_BASE}"
 auth = WP_AUTH
 data = {
@@ -707,6 +737,43 @@ python3 /opt/svg_cover_gen.py --post_id <post_id> --line1 "Заголовок" -
 
 ---
 
+## Шаг 5b — Технические AI-предпроверки (перед публикацией)
+
+Две быстрые проверки. Выполнять при каждой публикации — состояние сайта могло измениться.
+
+**1. robots.txt — AI-краулеры не заблокированы.**
+
+Блокировка AI-краулеров = −23,1% месячного трафика (Rutgers/Wharton 2025). Без OAI-SearchBot нет ChatGPT Search, без YandexAdditional нет Нейро.
+
+```bash
+curl -s {WP_URL}/robots.txt
+```
+
+Проверить: НЕТ секций `User-agent: <бот>` + `Disallow: /` для retrieval-ботов: `OAI-SearchBot`, `PerplexityBot`, `YandexAdditional`, `Claude-SearchBot`, `GPTBot`. Имплицитный allow (`User-Agent: *` без блокировок) — OK, явные Allow-секции не обязательны.
+
+Статус yoursite.ru на 2026-06-12: ✅ имплицитный allow, AI-боты не заблокированы.
+
+Если найдена блокировка retrieval-бота → СТОП, показать пользователю, предложить убрать через SSH.
+
+**2. JS-SEO — контент и Schema видны без JavaScript.**
+
+AI-краулеры не исполняют JS (Vercel research). Если JSON-LD или контент рендерятся скриптом — для AI их нет.
+
+```bash
+# После публикации (или на превью с auth) — исходный HTML без JS:
+curl -s "{WP_URL}/blog/<slug>/" > /tmp/raw.html
+grep -c 'application/ld+json' /tmp/raw.html        # ≥1 (FAQPage + Speakable)
+grep -c 'FAQPage' /tmp/raw.html                     # ≥1
+grep -o '<h2[^>]*>' /tmp/raw.html | wc -l           # = числу H2 статьи
+grep -c '<meta name="description"' /tmp/raw.html    # ≥1
+# Фрагмент первого абзаца (5-7 слов) присутствует в raw HTML:
+grep -c "<фраза из лида>" /tmp/raw.html             # ≥1
+```
+
+Если JSON-LD/контент отсутствуют в raw HTML → выяснить, какой плагин/блок рендерит через JS, и перенести в серверный рендер (для WP: JSON-LD в контенте поста, не в Gutenberg-динамике).
+
+---
+
 ## Шаг 6 — Публикация
 
 ```python
@@ -728,7 +795,7 @@ requests.post(url, json={"status": "publish"}, auth=auth)
 
 **Выполнять сразу после публикации** — только для проектов с `llms_txt_path` в `project.md` или для дефолтного Фактора.
 
-Дефолтный путь: `/var/www/YOUR_DOMAIN/public_html/llms.txt`
+Дефолтный путь: `/var/www/domains/yoursite.ru/public_html/llms.txt`
 
 ```python
 import subprocess
@@ -739,7 +806,7 @@ import subprocess
 desc_short = seo_description[:80].rstrip()
 new_line = f"- [{post_title}](https://{WP_DOMAIN}/blog/{slug}/): {desc_short}"
 
-llms_path = project_config.get("llms_txt_path", "/var/www/YOUR_DOMAIN/public_html/llms.txt")
+llms_path = project_config.get("llms_txt_path", "/var/www/domains/yoursite.ru/public_html/llms.txt")
 
 # Добавить в начало секции ## Блог (новые статьи сверху)
 ssh_script = f"""
@@ -810,7 +877,7 @@ grep -l "<slug>" pages/blog/*/index.html
 ## Gotchas
 
 - **FAQ — ТОЛЬКО голые `<details><summary>` БЕЗ inline-стилей** — FAQ в виде `<h3>Вопрос</h3><p>Ответ</p>` — критическая ошибка (выглядит как жирные H3). Правильный формат: `<details>\n<summary>Вопрос?</summary>\n<p>Ответ.</p>\n</details>` — никаких `style=`, никаких `class=`, никаких wrapper-div. Тема faktor-template сама стилизует аккордеон. Добавление inline-стилей делает FAQ не похожим на остальные статьи сайта. Эталон: WP post 125 (5 этапов продаж).
-- **Ссылки на кейсы — полный href без вложенных `<a>`** — запрещено генерировать `<a href="/case/full-slug/"><a href="/case/">текст</a>slug</a>`. Правильный формат: `<a href="https://YOUR_DOMAIN.ru/case/full-slug/">текст</a>`. Двойные вложенные `<a>` рендерятся как broken link: текст + slug после закрывающего тега.
+- **Ссылки на кейсы — полный href без вложенных `<a>`** — запрещено генерировать `<a href="/case/full-slug/"><a href="/case/">текст</a>slug</a>`. Правильный формат: `<a href="https://yoursite.ru/case/full-slug/">текст</a>`. Двойные вложенные `<a>` рендерятся как broken link: текст + slug после закрывающего тега.
 
 - **llms.txt — только для post_type=blog** — страницы (`/services/`, `/case/`) не добавлять в llms.txt автоматически. Если нужно — обновить вручную.
 - **llms.txt — новые статьи сверху** — вставлять в начало `## Блог`, не в конец. Свежий контент важнее для LLM-индексации.
@@ -869,6 +936,8 @@ grep -l "<slug>" pages/blog/*/index.html
 - [ ] Blockquote class="yellow": 1–2 шт.
 - [ ] Blog-баннер в середине: `[blog-banner id=1480]`
 - [ ] FAQ: 4+ вопроса, JSON-LD + details/summary аккордеон (не «Вопрос:/Ответ:» параграфы)
+- [ ] TL;DR-блок с `class="tl-dr"` + SpeakableSpecification JSON-LD (раздел I-2)
+- [ ] Никакой generic schema (Article/HowTo/Organization per-статья) — только FAQPage + Speakable
 - [ ] Порядок финала: «Что дальше» → [blog-banner-form] → «Частые вопросы»
 - [ ] Шаги `<p><strong>Шаг N:</strong>` → визуальные карточки с кружками
 - [ ] Excel-формулы → инлайн `<code>`, математика → styled div с border-left
@@ -885,5 +954,7 @@ grep -l "<slug>" pages/blog/*/index.html
 - [ ] post_type = blog
 - [ ] author = 523
 - [ ] Предпросмотр проверен
+- [ ] robots.txt: AI-краулеры не заблокированы (Шаг 5b)
+- [ ] JS-SEO: контент + JSON-LD + meta в raw HTML без JS (Шаг 5b)
 - [ ] Опубликовано; обложки генерируются автоматически (лог: `/tmp/cover_gen_<id>.log`)
 - [ ] llms.txt обновлён (Шаг 7) — новая статья добавлена в секцию ## Блог

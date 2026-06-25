@@ -4,15 +4,15 @@
 Фиксируешь динамику. Генерируешь action items для /page-optimizer.
 
 **Дефолты Фактора:**
-- Domain: `YOUR_DOMAIN.ru`
-- SSH: `root@YOUR_SERVER_IP`, WP root `/var/www/YOUR_DOMAIN/public_html`
+- Domain: `yoursite.ru`
+- SSH: `root@YOUR_SERVER_IP`, WP root `/var/www/domains/yoursite.ru/public_html`
 - WP_AUTH: `("YOUR_WP_USER", "YOUR_WP_APP_PASSWORD")`
 - Keys.so token: из `.env` → `KEYSO_API_TOKEN`
 
 **Нужны токены (из .env или project.md):**
 - `YANDEX_WEBMASTER_TOKEN` — OAuth токен Яндекс.Вебмастер
 - `YANDEX_WEBMASTER_USER_ID` — ID пользователя
-- `YANDEX_WEBMASTER_HOST_ID` — ID хоста (напр. `https:YOUR_DOMAIN.ru:443`)
+- `YANDEX_WEBMASTER_HOST_ID` — ID хоста (напр. `https:yoursite.ru:443`)
 - `GOOGLE_GSC_CREDENTIALS` — путь к JSON сервисного аккаунта (опционально)
 
 ---
@@ -55,7 +55,7 @@ from datetime import date, timedelta
 
 YWSM_TOKEN = os.environ.get("YANDEX_WEBMASTER_TOKEN", "")
 YWSM_USER_ID = os.environ.get("YANDEX_WEBMASTER_USER_ID", "")
-YWSM_HOST_ID = os.environ.get("YANDEX_WEBMASTER_HOST_ID", "https:YOUR_DOMAIN.ru:443")
+YWSM_HOST_ID = os.environ.get("YANDEX_WEBMASTER_HOST_ID", "https:yoursite.ru:443")
 
 date_to = date.today().strftime("%Y-%m-%d")
 date_from = (date.today() - timedelta(days=7)).strftime("%Y-%m-%d")
@@ -145,7 +145,7 @@ else:
 **Перплексити:**
 ```python
 # WebFetch: https://www.perplexity.ai/search?q={ключ}
-# Искать: есть ли YOUR_DOMAIN.ru в источниках?
+# Искать: есть ли yoursite.ru в источниках?
 ```
 
 **Яндекс AI-ответ:**
@@ -246,7 +246,7 @@ ai_citations:
 Если у проекта есть `{project_dir}/data/llms.txt` или сервер доступен по SSH — обновить файл.
 
 ```markdown
-# Структура llms.txt для YOUR_DOMAIN.ru:
+# Структура llms.txt для yoursite.ru:
 # Добавить новую статью в список
 
 ## Лучшие статьи блога
@@ -255,7 +255,7 @@ ai_citations:
 
 Файл хранится в `factor/data/llms.txt` и деплоится на сервер:
 ```bash
-scp factor/data/llms.txt root@YOUR_SERVER_IP:/var/www/YOUR_DOMAIN/public_html/llms.txt
+scp factor/data/llms.txt root@YOUR_SERVER_IP:/var/www/domains/yoursite.ru/public_html/llms.txt
 ```
 
 ---
@@ -296,13 +296,13 @@ Action items (передать в /page-optimizer):
 
 ## Gotchas
 
-- **YWSM HOST_ID формат** — `https:YOUR_DOMAIN.ru:443` с двоеточиями, не слешами. Получить через `GET https://api.webmaster.yandex.net/v4/user/{userId}/hosts/` → найти свой домен.
+- **YWSM HOST_ID формат** — `https:yoursite.ru:443` с двоеточиями, не слешами. Получить через `GET https://api.webmaster.yandex.net/v4/user/{userId}/hosts/` → найти свой домен.
 - **Яндекс.Вебмастер API date range** — API даёт данные с задержкой ~3 дня. Брать период `today - 7 days` — `today - 3 days`, не сегодняшний день. Иначе последние дни будут пустыми.
 - **YWSM API requires OAuth, не API-key** — нужен OAuth токен от аккаунта который добавил сайт в Вебмастер. Получить через: ya.ru → OAuth → приложение с правом webmaster:read.
 - **GSC требует верификацию домена** — сервисный аккаунт должен быть добавлен как владелец/пользователь в GSC для нужного сайта.
-- **Perplexity scraping нестабильно** — если WebFetch блокирует, использовать WebSearch по запросу «perplexity ответ на [ключ] YOUR_DOMAIN.ru». Проверить вручную если автоматика не работает.
+- **Perplexity scraping нестабильно** — если WebFetch блокирует, использовать WebSearch по запросу «perplexity ответ на [ключ] yoursite.ru». Проверить вручную если автоматика не работает.
 - **Первая проверка** — delta не считать, просто зафиксировать базовые позиции. Написать «Базовые позиции (первая проверка)».
 - **Ключи из pipeline.md** — `target_key` в pipeline.md — это основной ключ. Если нужны все ключи страницы — смотреть в листе «Позиции 4-10» в XLSX или передать через аргумент `keys=`.
-- **llms.txt** — файл должен быть валидным markdown, не HTML. Проверить: `curl https://YOUR_DOMAIN.ru/llms.txt` — должен отдавать text/plain или text/markdown.
+- **llms.txt** — файл должен быть валидным markdown, не HTML. Проверить: `curl https://yoursite.ru/llms.txt` — должен отдавать text/plain или text/markdown.
 - **action items в pipeline.md** — добавлять в секцию `## Action items для /page-optimizer`, не перезаписывать — добавлять с датой. /page-optimizer читает их и вычёркивает выполненные.
 - **KEYSO_API_TOKEN** — токен в `.env`, header `X-Keyso-TOKEN` (с заглавной T). При использовании keys.so для проверки позиций конкурентов: это оценочные данные (WS = частота), не реальные позиции конкретного сайта. Для реальных позиций — только Yandex.Webmaster и GSC.

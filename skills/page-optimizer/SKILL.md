@@ -4,10 +4,10 @@
 Никаких галлюцинаций: если не знаешь что писать в новом разделе — ставишь `[ПРОВЕРИТЬ: нужен конкретный пример]`.
 
 **Дефолты Фактора** (если нет project.md):
-- WP_URL = `https://YOUR_DOMAIN.ru`
+- WP_URL = `https://yoursite.ru`
 - WP_AUTH = `("YOUR_WP_USER", "YOUR_WP_APP_PASSWORD")`
 - WP_POST_TYPE = `blog`
-- SSH: `root@YOUR_SERVER_IP`, WP root `/var/www/YOUR_DOMAIN/public_html`
+- SSH: `root@YOUR_SERVER_IP`, WP root `/var/www/domains/yoursite.ru/public_html`
 
 ---
 
@@ -99,7 +99,7 @@ for h2 in soup.find_all("h2"):
 
 **Правила контента нового раздела:**
 - Только то, что логически следует из темы статьи и известных фактов
-- Если нужен пример из практики — `[ПРОВЕРИТЬ: добавить пример из кейса YOUR_DOMAIN.ru/case/]`
+- Если нужен пример из практики — `[ПРОВЕРИТЬ: добавить пример из кейса yoursite.ru/case/]`
 - Если нужна цифра без T1/T2 источника — не ставить, или «по оценкам рынка»
 - Объём нового раздела: 150–400 слов. Не раздувать.
 
