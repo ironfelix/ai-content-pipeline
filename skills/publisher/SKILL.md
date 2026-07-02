@@ -40,10 +40,10 @@ BLOG_BANNER_END = config.get("blog_banner_end", "[blog-banner-form id=2666]")
 
 Если `project.md` НЕ найден → фолбэк на дефолты Фактора:
 - `WP_URL` = `https://yoursite.ru`
-- `WP_AUTH` = `("YOUR_WP_USER", "YOUR_WP_APP_PASSWORD")`
+- `WP_AUTH` = читать `wp_user`/`wp_password` из `factor/project.md` (секреты в тексте скилла запрещены; если project.md недоступен — взять из `.env` или спросить пользователя)
 - `WP_POST_TYPE` = `blog`
 - `WP_AUTHOR_ID` = `523`
-- `REST_BASE` = `/?rest_route=/wp/v2/posts`
+- `REST_BASE` = `/?rest_route=/wp/v2/posts` — фолбэк для проектов без CPT; при настроенном проекте rest_base читать из project.md (`wp_rest_base`)
 - `BLOG_BANNER_MID` = `[blog-banner id=1480]`
 - `BLOG_BANNER_END` = `[blog-banner-form id=2666]`
 
@@ -99,6 +99,18 @@ if os.path.exists(pipeline_path):
         if qg_match and "FAIL" in qg_match.group(0):
             blocked.append("  ❌ quality-gate — статус FAIL (нужно исправить нарушения)")
 
+    # Methodology gate: нужен «✅ PASS». BLOCK при 🔴 или ⏳.
+    # Строка «5b. Methodology re-check» есть не во всех pipeline (появляется после
+    # повторного прогона) — если её нет, не блокировать; если есть — проверять так же.
+    for label, required in [("4b. Methodology gate", True), ("5b. Methodology re-check", False)]:
+        m = re.search(re.escape(f"| {label} |") + r'[^\n]+', pipeline)
+        if m:
+            row = m.group(0)
+            if "🔴" in row or "⏳" in row:
+                blocked.append(f"  ❌ {label} — не пройден (🔴/⏳), нужен ✅ PASS")
+        elif required:
+            blocked.append(f"  ⚠️ {label} — не найден в pipeline.md (прогнать /methodology-gate)")
+
     if blocked:
         print("🔒 ПУБЛИКАЦИЯ ЗАБЛОКИРОВАНА. Незакрытые шаги:")
         for b in blocked:
@@ -109,7 +121,7 @@ if os.path.exists(pipeline_path):
         print("✅ Pipeline gate пройден — все шаги выполнены. Продолжаю публикацию...")
 ```
 
-Если pipeline.md не существует — продолжать без gate-проверки (обратная совместимость).
+**Если pipeline.md не существует (или slug не передан)** — НЕ пропускать молча. Сообщить пользователю: «pipeline.md не найден — гейты не проверены» и требовать явного подтверждения «публикуем без gate». Без этой фразы к публикации не переходить.
 
 ---
 
@@ -187,7 +199,9 @@ auth = WP_AUTH
 data = {"title": "<H1>", "content": "<HTML>", "slug": "<slug>", "status": "draft"}
 resp = requests.post(url, json=data, auth=auth)
 post_id = resp.json()["id"]
-# Сразу сменить тип на WP_POST_TYPE (дефолт: blog):
+# ТОЛЬКО для fallback-сценария (REST_BASE = /wp/v2/posts, wp_rest_base не настроен в project.md):
+# созданный post нужно сменить на WP_POST_TYPE через wp db query.
+# Если REST_BASE указывает на CPT (напр. /?rest_route=/wp/v2/blog) — пост сразу нужного типа, шаг пропустить.
 # wp db query "UPDATE wp_posts SET post_type='{WP_POST_TYPE}' WHERE ID=<post_id>" --allow-root --path=<wp_root>
 ```
 Предпросмотр: `{WP_URL}/?post_type={WP_POST_TYPE}&p=<post_id>&preview=true`
@@ -207,7 +221,7 @@ post_id = resp.json()["id"]
 
 ## 🔴 HARD GATE — ОБЯЗАТЕЛЬНАЯ ОСТАНОВКА
 
-**СТОП. Не выполнять шаги 2–6 (SEO-чеклист, типографику, ACF, обложку, публикацию).**
+**СТОП. Не выполнять шаги 2–10 (SEO-чеклист, структуру, типографику, ACF, обложку, публикацию, llms.txt).**
 
 Выдать ссылки выше и ждать. Продолжать ТОЛЬКО если пользователь написал буквально «публикуем».
 
@@ -215,15 +229,15 @@ post_id = resp.json()["id"]
 
 ---
 
----
+## Шаг 2 — SEO-чеклист (после «публикуем», перед форматированием)
 
-## Шаг 1 — SEO-чеклист (проверить до публикации)
+**Сначала — перечитать актуальный контент поста из WP** (`context=edit`, взять `content.raw`): после sync мог отработать /designer и вставить инфографику. Все дальнейшие шаги (чеклист, структура, типографика) выполнять на текущей версии из WP, а не на локальной копии.
 
 Пройди по каждому пункту и отметь статус:
 
 **Контент:**
 - [ ] H1 содержит целевой ключ + год (пример: «Построение отдела продаж 2025»)
-- [ ] Лид-параграф (TL;DR) — первое предложение = прямой ответ на запрос статьи. Проверка: можно ли вставить его в AI-ответ без контекста? Если нет — вернуть в /editor. Оформить как визуальный TL;DR-блок (см. Шаг 2, раздел A-0).
+- [ ] Лид-параграф (TL;DR) — первое предложение = прямой ответ на запрос статьи. Проверка: можно ли вставить его в AI-ответ без контекста? Если нет — вернуть в /editor. Оформить как визуальный TL;DR-блок (см. Шаг 3, раздел A-0).
 - [ ] TOC-блок после лида, все H2 имеют `id`-якоря
 - [ ] Нет `[ПРОВЕРИТЬ]` и `[нужна деталь от клиента]` в тексте
 - [ ] **Тире (—): не более 8 в статье** — посчитать явно: `grep -o '—' file.html | wc -l`. Если больше 8 — вернуть в редактуру.
@@ -233,7 +247,7 @@ post_id = resp.json()["id"]
 - [ ] Списки 3+ однородных элементов → таблицы
 - [ ] Blockquote class="yellow": 1–2 штуки, не более 3 blockquote суммарно
 - [ ] Blog-баннер в середине статьи: `[blog-banner id=1480]`
-- [ ] Порядок финала: H2 «Что дальше» → H2 «Частые вопросы»
+- [ ] Порядок финала: H2 «Что дальше» → `[blog-banner-form id=2666]` → H2 «Частые вопросы» (FAQ)
 - [ ] FAQ: минимум 4 вопроса, Schema.org JSON-LD + `<details><summary>`
 
 **ACF-поля для SEO:**
@@ -244,7 +258,7 @@ post_id = resp.json()["id"]
 
 ---
 
-## Шаг 2 — Структура и читаемость
+## Шаг 3 — Структура и читаемость
 
 Перед типографикой — пройти по структурным элементам. Смотреть на реальные статьи как образец: `factor/articles/kev/kev-klyuchevoy-etap-voronki.html`, `factor/articles/grebenyuk/grebenyuk-sovety-prodazhi.html`.
 
@@ -432,9 +446,9 @@ post_id = resp.json()["id"]
 
 ### I. FAQ аккордеон — обязательный формат
 
-**🔴 ОБЯЗАТЕЛЬНО:** FAQ всегда в конце статьи, после H2 «Что дальше». Никогда не в середине.
+**🔴 ОБЯЗАТЕЛЬНО:** FAQ всегда в конце статьи. Порядок финала единый: H2 «Что дальше» → `[blog-banner-form id=2666]` → H2 «Частые вопросы» (FAQ). Никогда не в середине.
 
-**Порядок в конце статьи:**
+**Порядок в конце статьи (после H2 «Что дальше»):**
 1. `[blog-banner-form id=2666]`
 2. `<h2 id="faq">Частые вопросы о [тема]</h2>`
 3. Schema.org JSON-LD
@@ -621,7 +635,7 @@ cwebp -q 90 /tmp/name.png -o /var/www/.../uploads/YYYY/MM/name.webp
 
 ---
 
-## Шаг 3 — Типографика
+## Шаг 4 — Типографика
 
 Обработать HTML статьи перед публикацией.
 
@@ -643,11 +657,24 @@ cwebp -q 90 /tmp/name.png -o /var/www/.../uploads/YYYY/MM/name.webp
 
 Где НЕ заменять: `<a href>`, `<script>`, CSS-классы
 
-Для автоматической обработки — есть скрипт `articles/fix_nbsp.py`. Запустить по SSH если нужен полный проход.
+Для автоматической обработки — inline-замена (python локально перед загрузкой или sed по SSH; отдельного скрипта в репо нет):
+
+```python
+import re
+# 1. Уже расставленные «видимые» неразрывные пробелы (U+00A0) → &nbsp;
+content = content.replace(" ", "&nbsp;")
+# 2. Расставить &nbsp; после одно-/двухбуквенных предлогов и союзов
+#    ТОЛЬКО внутри текстовых тегов (<p>, <li>, <h2>, <h3>, <summary>) —
+#    не трогать <table>, <script>, <a href>, HTML-атрибуты и существующие &nbsp;
+content = re.sub(r'(?<=[>\s(«„])(в|с|к|о|у|а|и|я|на|по|из|за|до|от|не|но|ни)( )',
+                 r'\1&nbsp;', content)
+```
+
+Прогонять по фрагментам (тег за тегом), а не по всему HTML сразу — иначе замены попадут в таблицы и атрибуты.
 
 ---
 
-## Шаг 3 — Подготовить данные для WordPress
+## Шаг 5 — Подготовить данные для WordPress
 
 Собери перед публикацией:
 
@@ -668,7 +695,7 @@ author_id:        523  (Кандеев по умолчанию)
 
 ---
 
-## Шаг 4 — Создать черновик в WordPress
+## Шаг 6 — Создать черновик в WordPress
 
 Если черновика ещё нет:
 
@@ -691,7 +718,8 @@ post_id = resp.json()["id"]
 Затем через SSH (`wp_ssh_host` из project.md, дефолт: YOUR_SERVER_IP, root):
 
 ```bash
-# Поменять тип на WP_POST_TYPE (из project.md, дефолт: blog)
+# Поменять тип на WP_POST_TYPE — ТОЛЬКО для fallback-сценария без настроенного wp_rest_base.
+# Если пост создан через CPT rest_base (напр. /wp/v2/blog) — тип уже правильный, пропустить.
 wp db query "UPDATE wp_posts SET post_type='{WP_POST_TYPE}' WHERE ID=<post_id>" --path=<wp_root> --allow-root
 
 # ACF-поля (field IDs из project.md acf_* ключей, дефолты ниже)
@@ -714,18 +742,18 @@ wp post meta update <post_id> cover_tag '<cover_tag>' --allow-root --path=<wp_ro
 
 ---
 
-## Шаг 5 — Обложка
+## Шаг 7 — Обложка
 
 Обложки генерируются **автоматически** при каждом сохранении поста через mu-plugin `factor-cover-gen.php` — если заполнены `cover_subtitle` и `cover_tag`.
 
 Что происходит автоматически:
 1. Хук `save_post_blog` → запускает `/opt/svg_cover_gen.py --post_id X --auto` асинхронно
 2. Скрипт читает post_title, cover_subtitle, cover_tag из WP
-3. Авто-сплит title → line1 (≤2 слова) + line2 (остаток + год)
+3. Авто-сплит title → line1 (≤3 слова) + line2 (остаток + год)
 4. SVG square (600×600) и wide (2400×984) генерируются в чёрном стиле v5
 5. ACF-поля `image` и `image-square` обновляются, featured image установлен
 
-**Ничего делать не нужно** — достаточно заполнить ACF-поля `cover_subtitle` и `cover_tag` на шаге 4.
+**Ничего делать не нужно** — достаточно заполнить ACF-поля `cover_subtitle` и `cover_tag` на шаге 6.
 
 Если нужен **ручной перегенер** (после правки заголовка — запустить через SSH):
 ```bash
@@ -737,9 +765,9 @@ python3 /opt/svg_cover_gen.py --post_id <post_id> --line1 "Заголовок" -
 
 ---
 
-## Шаг 5b — Технические AI-предпроверки (перед публикацией)
+## Шаг 8 — Технические предпроверки (перед публикацией)
 
-Две быстрые проверки. Выполнять при каждой публикации — состояние сайта могло измениться.
+Три быстрые проверки. Выполнять при каждой публикации — состояние сайта могло измениться.
 
 **1. robots.txt — AI-краулеры не заблокированы.**
 
@@ -772,9 +800,23 @@ grep -c "<фраза из лида>" /tmp/raw.html             # ≥1
 
 Если JSON-LD/контент отсутствуют в raw HTML → выяснить, какой плагин/блок рендерит через JS, и перенести в серверный рендер (для WP: JSON-LD в контенте поста, не в Gutenberg-динамике).
 
+**3. Автопроверки HTML контента (известные баги).**
+
+Прогнать по финальному HTML (тот, что уходит в WP — `content.raw` или локальный файл):
+
+```bash
+grep -c '<a[^>]*><a' article.html        # = 0 — вложенные <a> (известный баг ссылок на кейсы)
+grep -c '<p>Вопрос:' article.html        # = 0 — FAQ параграфами запрещён (раздел I)
+grep -o ' — ' article.html | wc -l       # ≤ 8 — лимит тире на статью
+```
+
+- Вложенные `<a>` найдены → заменить на одинарную ссылку с полным href: `<a href="https://yoursite.ru/case/full-slug/">текст</a>`
+- `<p>Вопрос:` найден → конвертировать в `<details><summary>` аккордеон
+- Тире > 8 → вернуть в редактуру
+
 ---
 
-## Шаг 6 — Публикация
+## Шаг 9 — Публикация
 
 ```python
 import requests
@@ -791,9 +833,11 @@ requests.post(url, json={"status": "publish"}, auth=auth)
 
 ---
 
-## Шаг 7 — Обновить llms.txt
+## Шаг 10 — Обновить llms.txt
 
 **Выполнять сразу после публикации** — только для проектов с `llms_txt_path` в `project.md` или для дефолтного Фактора.
+
+llms.txt владеет ТОЛЬКО /publisher — обновление in-place на сервере. Другие скиллы (/tracker и пр.) файл не трогают.
 
 Дефолтный путь: `/var/www/domains/yoursite.ru/public_html/llms.txt`
 
@@ -801,7 +845,7 @@ requests.post(url, json={"status": "publish"}, auth=auth)
 import subprocess
 
 # Собрать строку для llms.txt
-# seo_description берём из ACF-поля (уже заполнено на шаге 4)
+# seo_description берём из ACF-поля (уже заполнено на шаге 6)
 # Обрезаем до 80 символов, без кавычек
 desc_short = seo_description[:80].rstrip()
 new_line = f"- [{post_title}](https://{WP_DOMAIN}/blog/{slug}/): {desc_short}"
@@ -882,7 +926,7 @@ grep -l "<slug>" pages/blog/*/index.html
 - **llms.txt — только для post_type=blog** — страницы (`/services/`, `/case/`) не добавлять в llms.txt автоматически. Если нужно — обновить вручную.
 - **llms.txt — новые статьи сверху** — вставлять в начало `## Блог`, не в конец. Свежий контент важнее для LLM-индексации.
 - **author_id всегда 523** — Кандеев по умолчанию. Не забывать при создании поста через API и при обновлении ACF-полей.
-- **post_type = 'blog', не 'post'** — WP API создаёт `post`, нужно вручную менять через `wp db query`. Без этого статья не появится в блоге.
+- **post_type = 'blog', не 'post'** — только для fallback-сценария без настроенного `wp_rest_base`: тогда WP API создаёт `post` и тип нужно менять через `wp db query`, иначе статья не появится в блоге. При создании через CPT rest_base (напр. `/wp/v2/blog`) шаг не нужен.
 - **🔴 Не публиковать до «публикуем»** — после создания черновика и Google Doc ПОЛНАЯ ОСТАНОВКА. Ждать буквально слово «публикуем». «да», «ок», «всё ок», «хорошо» — НЕ считаются. Нарушение этого правила критично: статья уйдёт в публикацию без проверки.
 - **Не ставить &nbsp; внутри `<table>`** — только в `<p>`, `<li>`, `<h2>`, `<summary>`. В ячейках таблиц &nbsp; ломает выравнивание.
 - **`<ul>/<li>` со ссылками — всегда заменять на `<div>`-список**: тема применяет к `ul li a` агрессивные стили (float/flex), ни `display:inline`, ни `!important` не помогают — текст расплывается в две колонки. Единственный надёжный фикс: `<div>`-список. Тема не применяет стили к `<div>`. **Правило: если в `<ul>` есть хотя бы одна `<a>` — весь список заменять на `<div>`-список.** Также: `<div>` внутри flex-контейнера получает margin от темы — обязательно `margin:0 !important` на каждом пункте:
@@ -892,22 +936,10 @@ grep -l "<slug>" pages/blog/*/index.html
   <div style="display:flex; gap:10px; align-items:flex-start; margin:0 !important;"><span style="color:#CC955B; font-size:18px; line-height:1.5; flex-shrink:0;">•</span><div style="margin:0 !important;">Последний пункт.</div></div>
   </div>
   ```
-- **FAQ accordion — тема добавляет каждому `<details>` свои border/border-radius/margin**: отдельные боксы вместо единого аккордеона. Фикс: добавить `!important`-сбросы на каждый `<details>`, кроме `border-bottom` (разделитель). На `<summary>` и ответный `<div>` добавить `margin:0 !important`:
-  ```html
-  <!-- Средние items (не последний): -->
-  <details style="border-bottom:1px solid #E8E8E0; margin:0 !important; padding:0 !important; border-radius:0 !important; border-left:none !important; border-right:none !important; border-top:none !important;">
-    <summary style="...; margin:0 !important;">Вопрос?<span>+</span></summary>
-    <div style="...; margin:0 !important;">Ответ.</div>
-  </details>
-  <!-- Последний item: -->
-  <details style="margin:0 !important; padding:0 !important; border:none !important; border-radius:0 !important;">
-    ...
-  </details>
-  ```
 - **`<li><strong>Заголовок.</strong> Текст</li>` — заменять на таблицу** — тема рендерит это как двухколоночный список с переносами. **КРИТИЧНО: проверять ВСЕ `<ul>` в статье перед публикацией** — паттерн `<li><strong>` встречается несколько раз (например, список ролей + список инструментов). Смотреть глазами, не только поиском по одному вхождению.
 - **Обложки генерируются автоматически** — mu-plugin `factor-cover-gen.php` запускает `svg_cover_gen.py --auto` при каждом сохранении blog-поста. Достаточно заполнить `cover_subtitle` и `cover_tag`. Ручной запуск больше не нужен.
 - **Обложки: ручной перегенер** — только если нужно исправить заголовок на обложке после публикации: `python3 /opt/svg_cover_gen.py --post_id <id> --auto --upload`. Лог: `/tmp/cover_gen_<id>.log`.
-- **Google Doc создаётся до ревью, WP черновик — тоже до ревью** — оба параллельно в Шаге 0. Не ждать «публикуем» для создания черновиков.
+- **Google Doc создаётся до ревью, WP черновик — тоже до ревью** — оба параллельно в Шаге 1. Не ждать «публикуем» для создания черновиков.
 - **Google Doc = полный текст статьи, не метаданные** — пользователь читает и правит именно Google Doc. Вставлять весь HTML-контент конвертированный в plain text через htmlToText() с маркерами ## для H2. Применять стили HEADING_1/HEADING_2 через googleapis batchUpdate. Не вставлять вместо статьи URL, SEO-поля или технические данные.
 - **Таблицы без margin слипаются с текстом** — всегда оборачивать в `<div style="margin:28px 0;">`. Проверить каждую таблицу.
 - **Формулы через `<code>` — запрещено** — только styled div с border-left:#CC955B. Искать все `X = Y/Z` в тексте и переоформлять.
@@ -954,7 +986,8 @@ grep -l "<slug>" pages/blog/*/index.html
 - [ ] post_type = blog
 - [ ] author = 523
 - [ ] Предпросмотр проверен
-- [ ] robots.txt: AI-краулеры не заблокированы (Шаг 5b)
-- [ ] JS-SEO: контент + JSON-LD + meta в raw HTML без JS (Шаг 5b)
+- [ ] robots.txt: AI-краулеры не заблокированы (Шаг 8)
+- [ ] JS-SEO: контент + JSON-LD + meta в raw HTML без JS (Шаг 8)
+- [ ] Автопроверки: нет вложенных `<a>`, нет `<p>Вопрос:`, тире ≤8 (Шаг 8)
 - [ ] Опубликовано; обложки генерируются автоматически (лог: `/tmp/cover_gen_<id>.log`)
-- [ ] llms.txt обновлён (Шаг 7) — новая статья добавлена в секцию ## Блог
+- [ ] llms.txt обновлён (Шаг 10) — новая статья добавлена в секцию ## Блог

@@ -3,11 +3,19 @@
 Ты оптимизатор существующих статей. Не переписываешь — точечно добавляешь: новый H2, FAQ, внутренние ссылки.
 Никаких галлюцинаций: если не знаешь что писать в новом разделе — ставишь `[ПРОВЕРИТЬ: нужен конкретный пример]`.
 
-**Дефолты Фактора** (если нет project.md):
-- WP_URL = `https://yoursite.ru`
-- WP_AUTH = `("YOUR_WP_USER", "YOUR_WP_APP_PASSWORD")`
-- WP_POST_TYPE = `blog`
-- SSH: `root@YOUR_SERVER_IP`, WP root `/var/www/domains/yoursite.ru/public_html`
+**Конфиг проекта** — аргумент `project=` (дефолт `factor`) → читать `<project>/project.md`:
+- WP_URL, WP_AUTH (`wp_user`/`wp_password`), WP_POST_TYPE, `wp_ssh_host`, `wp_root` — из project.md. Секреты в тексте скилла запрещены.
+- Дефолты Фактора (если ключа нет): WP_URL = `https://yoursite.ru`, WP_POST_TYPE = `blog`
+
+---
+
+## Шаг 0 — Action items из pipeline.md
+
+Если передан `post_id` или `slug` — найти `<project>/articles/<slug>/pipeline.md` (slug при `post_id` взять из WP, Шаг 1) и прочитать секцию `## Action items для /page-optimizer` (её пишет /tracker).
+
+- **Секция есть** → показать пункты пользователю и предложить их как план правок (вместе с явными аргументами `add_h2`/`add_faq`/`add_links`, если переданы). После подтверждения — выполнять.
+- **После выполнения** → отметить сделанные пункты `[x]` в pipeline.md (см. Шаг 6). Отмечать только реально выполненные.
+- **pipeline.md или секции нет** → работать только по аргументам, сказать об этом пользователю.
 
 ---
 
@@ -15,13 +23,14 @@
 
 ```python
 import requests
-# ВАЖНО: запрашивать context=edit чтобы получить RAW контент (не rendered)
-# rendered содержит уже раскрытые шорткоды — если сохранить их обратно,
-# шорткоды превращаются в захардкоженный HTML, что ломает динамические блоки
+# ВАЖНО: запрашивать context=edit чтобы получить RAW контент.
+# Работаем ТОЛЬКО с raw — анализ, правки и сохранение, всё на content_raw.
+# rendered не использовать: в нём раскрыты шорткоды — если сохранить его обратно,
+# [blog-banner-form] и другие шорткоды превратятся в захардкоженный HTML навсегда.
 resp = requests.get(f"{WP_URL}/?rest_route=/wp/v2/{WP_POST_TYPE}/{post_id}", auth=WP_AUTH, params={"context": "edit"})
 post = resp.json()
-content_html = post["content"]["rendered"]   # для анализа и вставки секций
-content_raw = post["content"]["raw"]          # для сохранения обратно в WP
+content_raw = post["content"]["raw"]   # анализ + правки + сохранение
+post_status = post["status"]           # publish / draft — понадобится в Шаге 4
 post_title = post["title"]["rendered"]
 post_slug = post["slug"]
 ```
@@ -80,8 +89,7 @@ SEO Title:
 
 ```python
 from bs4 import BeautifulSoup
-# Парсить rendered HTML для анализа структуры (H2, абзацы)
-# НО применять изменения к RAW контенту и сохранять raw
+# Анализ структуры и правки — на RAW контенте
 soup = BeautifulSoup(content_raw, "html.parser")
 
 new_section = """
@@ -109,8 +117,8 @@ for h2 in soup.find_all("h2"):
 
 Проверить: есть ли уже `<h2 id="faq">` в статье?
 
-- **Если есть** → добавить новые `<details>` перед `</div>` FAQ-блока
-- **Если нет** → добавить в конец перед `[blog-banner-form]`
+- **Если есть** → вставить новые `<details>` ПОСЛЕ последнего `</details>` FAQ-блока. Актуальный формат — голые `<details>` без wrapper-div: искать `</div>` не нужно.
+- **Если нет** → добавить FAQ-блок в самый конец статьи, ПОСЛЕ `[blog-banner-form]` (канон финала: «Что дальше» → `[blog-banner-form]` → FAQ): `<h2 id="faq">` + JSON-LD + `<details>`
 
 Формат (без wrapper div, без inline-стилей — тема сама стилизует):
 ```html
@@ -144,6 +152,14 @@ for p in soup.find_all("p"):
 
 ## Шаг 4 — Сохранить как черновик и показать preview
 
+**Перед отправкой — проверить `post_status` (из Шага 1).**
+
+Если `post_status == "publish"` — ЯВНО предупредить пользователя ДО отправки правок:
+
+> ⚠️ Пост сейчас опубликован. После отправки правок он уйдёт в draft и страница будет отдавать 404, пока ты не скажешь «обновляем» — тогда верну publish.
+
+Это ОСОЗНАННОЕ поведение (правки публикуются только после человеческой проверки), не баг. Но пользователь должен знать про окно 404 заранее.
+
 ```python
 # Сохранять RAW контент (не rendered), чтобы шорткоды остались шорткодами
 updated_raw = str(soup)
@@ -167,6 +183,9 @@ resp = requests.post(
 
 👁 Preview: {WP_URL}/?post_type={WP_POST_TYPE}&p={post_id}&preview=true
 
+⚠️ [если пост был publish] Live-страница сейчас в draft и отдаёт 404 —
+проверь preview и скажи «обновляем», верну publish.
+
 Напишите «обновляем» чтобы опубликовать изменения.
 ```
 
@@ -175,6 +194,8 @@ resp = requests.post(
 ## 🔴 HARD GATE — ждать «обновляем»
 
 Не публиковать до явного «обновляем». «ок», «хорошо», «давай» — не считаются.
+
+Помнить: если пост был `publish` — он сейчас в draft (404). Не завершать сессию, оставив live-страницу в 404, не сообщив об этом пользователю.
 
 ---
 
@@ -186,10 +207,12 @@ wp post meta update <post_id> title '<new_seo_title>' --allow-root --path=<wp_ro
 wp post meta update <post_id> description '<new_description>' --allow-root --path=<wp_root>
 ```
 
-Опубликовать:
+**Вернуть `status: publish`** — обязательно после «обновляем» (пост был переведён в draft на Шаге 4, страница отдаёт 404, пока это не сделано):
 ```python
 requests.post(f"{WP_URL}/?rest_route=/wp/v2/{WP_POST_TYPE}/{post_id}", auth=WP_AUTH, json={"status": "publish"})
 ```
+
+Проверить, что страница снова отдаёт 200: `curl -s -o /dev/null -w "%{http_code}" {WP_URL}/blog/{post_slug}/`
 
 ---
 
@@ -201,33 +224,51 @@ requests.post(f"{WP_URL}/?rest_route=/wp/v2/{WP_POST_TYPE}/{post_id}", auth=WP_A
 import os, re
 from datetime import date
 
-# Попытаться найти pipeline.md по slug поста
-slug = post_slug  # из Шаг 1
-for project_dir in ["factor", "crmgroup"]:
-    pipeline_path = os.path.join(project_dir, "articles", slug, "pipeline.md")
-    if os.path.exists(pipeline_path):
-        with open(pipeline_path) as f:
-            content = f.read()
+project_dir = "<аргумент project= если передан, иначе 'factor'>"
+slug = post_slug  # из Шага 1
+pipeline_path = os.path.join(project_dir, "articles", slug, "pipeline.md")
 
-        today = date.today().strftime("%Y-%m-%d")
-        # Что было сделано
-        done = []
-        if new_h2_added: done.append(f"H2+1")
-        if faq_added: done.append(f"FAQ+{faq_count}")
-        if links_added: done.append(f"links+{links_count}")
-        summary = " ".join(done) if done else "обновлён"
+if not os.path.exists(pipeline_path):
+    print("pipeline.md не найден — ничего не обновлено")
+else:
+    with open(pipeline_path) as f:
+        content = f.read()
 
-        content = content.replace(
-            "| 10. Page opt | /page-optimizer | ⏳ | — | — |",
-            f"| 10. Page opt | /page-optimizer | ✅ | {today} | {summary} |"
-        )
+    today = date.today().strftime("%Y-%m-%d")
+    # Что было сделано
+    done = []
+    if new_h2_added: done.append("H2+1")
+    if faq_added: done.append(f"FAQ+{faq_count}")
+    if links_added: done.append(f"links+{links_count}")
+    summary = " ".join(done) if done else "обновлён"
+
+    new_row = f"| 11. Page opt | /page-optimizer | ✅ | {today} | {summary} |"
+    updated = False
+
+    if "| 11. Page opt |" in content:
+        content = re.sub(r'\| 11\. Page opt \|[^\n]+', new_row, content, count=1)
+        updated = True
+    else:
+        # Старые статьи (pipeline.md до обновления шаблона): строки нет —
+        # дописать её в конец таблицы Шагов, а не молча пропускать.
+        m = re.search(r'(\| 10\. Трекинг \|[^\n]+\n)', content)
+        if m:
+            content = content[:m.end()] + new_row + "\n" + content[m.end():]
+            updated = True
+
+    # Отметить выполненные action items (только реально сделанные, см. Шаг 0):
+    # в секции "## Action items для /page-optimizer" заменить "- [ ]" → "- [x]"
+    # у конкретных выполненных пунктов.
+
+    if updated:
         with open(pipeline_path, "w") as f:
             f.write(content)
         print(f"✅ pipeline.md обновлён: {pipeline_path}")
-        break
-else:
-    print("pipeline.md не найден — пропускаем")
+    else:
+        print("⚠️ pipeline.md найден, но таблица Шагов не распознана — обновить вручную")
 ```
+
+Не писать «✅ pipeline.md обновлён», если фактически ничего не изменилось (no-op) — честно сообщать, что именно не нашлось.
 
 ---
 
@@ -243,9 +284,11 @@ else:
 /page-optimizer post_id=3664
 /page-optimizer post_id=3664 add_h2="Возражение я подумаю" add_faq=3 add_links=2
 /page-optimizer post_id=3664 keys="я подумаю,отработка возражений"
+/page-optimizer post_id=3664 project=crmgroup
 ```
 
 - `post_id` — обязательный
+- `project` — папка проекта с project.md и articles/ (дефолт: `factor`)
 - `add_h2` — заголовок нового раздела (если не передан, агент определяет сам по ключам)
 - `add_faq` — количество вопросов для добавления (берёт из переданных ключей)
 - `add_links` — количество внутренних ссылок
@@ -255,6 +298,7 @@ else:
 
 ## Gotchas
 
+- **🔴 Draft-окно 404 — осознанное поведение, но предупреждать заранее.** Отправка правок (Шаг 4) переводит live-пост в draft — страница отдаёт 404 до «обновляем». Перед отправкой читать `post["status"]`; если `publish` — явно предупредить пользователя про окно 404. После «обновляем» (Шаг 5) — обязательно вернуть `status: publish` и проверить 200. Не оставлять live-страницу в 404 без ведома пользователя.
 - **🔴 КРИТИЧНО — всегда читать RAW, сохранять RAW.** Запрос `context=edit` обязателен: `post["content"]["raw"]` сохраняет шорткоды (`[blog-banner-form id=2666]`). `post["content"]["rendered"]` содержит уже раскрытый HTML — если сохранить его обратно, шорткоды превращаются в захардкоженный HTML навсегда. Парсить структуру через BeautifulSoup на `content_raw`, изменения сохранять в `content_raw`.
 - **SEO Title/Description — НЕ менять по умолчанию.** Только если явно нарушен один из 4 критериев. Написать пользователю «не меняем» — это нормальный исход.
 - **FAQ-вопросы — только из реальных ключей**, не придумывать. Если ключи не переданы — спросить или пропустить FAQ.

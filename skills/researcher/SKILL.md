@@ -61,6 +61,7 @@ else:
 - `company_context` = `factor/data/company-context.md`
 - `writing_rules` = `factor/FACTOR_WRITING_RULES.md`
 - `cases_url` = `yoursite.ru/case/`
+- `do_not_mention` = `[]` (пустой список — спросить у пользователя, есть ли запрещённые бренды/темы)
 
 ---
 
@@ -263,7 +264,7 @@ Google AI генерирует веер смежных запросов вокр
 **Перед разведкой по вебу — собрать то, чего НЕТ в вебе.** Это главный источник неповторимого угла. Веб-топ есть у всех конкурентов; уникальность — вне его.
 
 Собрать из `company_context` (project.md) + спросить пользователя, если не передано:
-1. **Данные компании по теме** — кейсы проектов с цифрами, «на чём реально работаем», результаты, грабли внедрения. (CRM Group: 400+ проектов — золото.)
+1. **Данные компании по теме** — кейсы проектов с цифрами, «на чём реально работаем», результаты, грабли внедрения. Первичные данные клиента из `<project>/data/` — золото (кейсы, цифры, опыт).
 2. **Экспертный инсайт** — что практик знает, чего нет в статьях (нюанс, исключение, «так делают, а надо иначе»).
 3. **Собственные данные** — Метрика/дашборды/тесты/расчёты, если применимо к теме.
 
@@ -503,7 +504,17 @@ import os, shutil, re
 from datetime import date
 
 slug = re.sub(r'-research$', '', os.path.splitext(os.path.basename(research_path))[0])
-project_dir = research_path.split("/")[0]
+
+# project_dir: если аргумент project= передан явно (Шаг 0) — использовать его.
+# Иначе выводить из пути research-файла: сегмент(ы) до "research/" или "articles/".
+# НЕ брать research_path.split("/")[0] — ломается на абсолютных путях.
+if not project_arg_passed:  # project= не передавали явно
+    parts = os.path.normpath(research_path).split(os.sep)
+    idx = next((i for i, p in enumerate(parts) if p in ("research", "articles")), None)
+    if idx:
+        project_dir = os.sep.join(parts[:idx])
+    else:
+        project_dir = os.path.dirname(os.path.dirname(research_path)) or "."
 
 article_dir = os.path.join(project_dir, "articles", slug)
 os.makedirs(article_dir, exist_ok=True)
@@ -539,7 +550,9 @@ else:
     print(f"✅ pipeline.md создан: {pipeline_path}")
 ```
 
-**Затем добавить в pipeline.md секцию `## H2 Plan`** — скопировать раздел 6 из research-файла (locked-формат: на каждый H2 — 3 bullet + источник + кейс). Это контракт для /writer: черновик пишется по плану, отступление от структуры = возврат в /researcher. Также добавить строку `cannibalization_check: ✅/⚠️` (результат Шага 0.6).
+**Затем добавить в pipeline.md секцию `## H2 Plan`** — скопировать раздел 6 из research-файла (locked-формат: на каждый H2 — 3 bullet + источник + кейс). Это контракт для /writer: черновик пишется по плану, отступление от структуры = возврат в /researcher.
+
+**Заполнить поле `cannibalization_check:`** — оно уже есть в шаблоне pipeline.md в секции «## Параметры». Записать туда результат Шага 0.6, например `cannibalization_check: OK` или `cannibalization_check: конфликт с <url>`. Если у проекта есть реестр известных дублей (например `<project>/data/cannibalization.md`) — сверить тему и с ним, результат учесть в этом же поле.
 
 Вывести пользователю:
 ```

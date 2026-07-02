@@ -1,23 +1,26 @@
 ---
 name: designer
-description: Дизайнер инфографики для статей — два режима: Pencil MCP (если есть data/design-tokens.md клиента) или HTML→Playwright (Фактор Продаж). Анализирует WP черновик, находит 2–3 места для визуализации, генерирует схемы в стиле клиента, загружает PNG в WP медиатеку и вставляет в контент. Запускать после /editor, перед /seo-optimizer. Вызывать командой /designer.
+description: Дизайнер инфографики для статей — два режима: Pencil MCP (если есть data/design-tokens.md клиента) или HTML→Playwright (Фактор Продаж). Анализирует WP черновик, находит 2–3 места для визуализации, генерирует схемы в стиле клиента, загружает PNG в WP медиатеку и вставляет в контент. Запускать после /publisher sync (WP-черновик создан), перед /publisher formatting. Вызывать командой /designer.
 ---
 
 # Designer — инфографика для статей
 
 ## Шаг 0 — Определить режим
 
-Проверить два условия:
+**Определить проект** — по аргументу `project=` (путь или имя папки проекта в рабочей директории), дефолт `factor`. НЕ полагаться на `os.getcwd()` — cwd между вызовами не гарантирован.
 
 ```python
 import os
 
-# 1. project.md в текущей директории
-config_path = os.path.join(os.getcwd(), "project.md")
+# project= аргумент, если передан (напр. project=crmgroup) → project_dir
+project_dir = "<значение аргумента project= если передан, иначе 'factor'>"
+
+# 1. project.md проекта
+config_path = os.path.join(project_dir, "project.md")
 has_project = os.path.exists(config_path)
 
-# 2. data/design-tokens.md клиента (признак клиентского проекта)
-tokens_path = os.path.join(os.getcwd(), "data", "design-tokens.md")
+# 2. <project>/data/design-tokens.md клиента (признак клиентского проекта)
+tokens_path = os.path.join(project_dir, "data", "design-tokens.md")
 has_tokens = os.path.exists(tokens_path)
 
 if has_tokens:
@@ -25,8 +28,10 @@ if has_tokens:
     print(f"Режим: PENCIL MCP → читаем {tokens_path}")
 else:
     MODE = "html"
-    print("Режим: HTML→Playwright (Фактор дефолты)")
+    print("Режим: HTML→Playwright (дефолты из project.md или Фактора)")
 ```
+
+**Если неоднозначно** (аргумент `project=` не передан, а в рабочей директории несколько папок проектов с `project.md`) — явно спросить пользователя, для какого проекта работаем, а не угадывать.
 
 **PENCIL режим** — если `data/design-tokens.md` существует:
 - Инфографика собирается через Pencil MCP `batch_design`
@@ -60,7 +65,7 @@ else:
 
 Дефолты Фактора (если project.md нет):
 - `wp_url` = `https://yoursite.ru`
-- `wp_auth` = `("YOUR_WP_USER", "YOUR_WP_APP_PASSWORD")`
+- `wp_auth` — учётку читать из `<project>/project.md` (поле `wp_auth`) или `.env`; секреты в тексте скилла не хранить
 - `wp_post_type` = `blog`
 - `color_accent` = `#CC955B` / `color_bg` = `#ECEADF` / `color_text` = `#252525` / `font` = `Raleway`
 
@@ -70,15 +75,18 @@ else:
 
 Если WP ID не передан — спроси: «Передай ID черновика в WordPress.»
 
+**Обязательно `context=edit` и `content["raw"]`.** `rendered` содержит раскрытые шорткоды — если потом записать rendered обратно в WP, шорткоды (например `[blog-banner-form id=2666]`) будут уничтожены безвозвратно.
+
 ```python
 import requests
 resp = requests.get(
     f"{WP_URL}/?rest_route=/wp/v2/{WP_POST_TYPE}/{wp_id}",
-    auth=WP_AUTH
+    auth=WP_AUTH,
+    params={"context": "edit"},
 )
 post = resp.json()
-content_html = post["content"]["rendered"]
-print(post["title"]["rendered"])
+content_html = post["content"]["raw"]  # НЕ "rendered"!
+print(post["title"]["raw"])
 ```
 
 ---
@@ -93,7 +101,7 @@ viz_markers = re.findall(r'\[ВИЗУАЛ:\s*(.+?)\]', article_text)
 # каждый разбить по '|' на тип=/заголовок=/данные=
 ```
 
-Для каждой метки: `тип` → шаблон (steps/funnel/stats/comparison/table-viz), `заголовок` → TITLE, `данные` → содержимое схемы. После генерации PNG — удалить текстовую метку из контента (она техническая, читателю не нужна).
+Для каждой метки: `тип` → шаблон (funnel / cards-num / cards-badge / stats — реальные шаблоны из `references/design-style.md`), `заголовок` → TITLE, `данные` → содержимое схемы. Легаси-типы из старых меток маппить: `steps` → cards-num (шаги оформлять карточками; кружки step-circle устарели), `comparison` → stats с 2 карточками «проблема / результат», `table-viz` → собрать из cards-* по образцу design-style.md. После генерации PNG — удалить текстовую метку из контента (она техническая, читателю не нужна).
 
 ### 🔴 ПРАВИЛО: текст инфографики = текст редактора. НЕ сочинять.
 
@@ -112,18 +120,19 @@ viz_markers = re.findall(r'\[ВИЗУАЛ:\s*(.+?)\]', article_text)
 **Если меток нет** (старая статья или editor не проставил) — выбери сам, РОВНО 2–3 инфографики (текст всё равно из статьи дословно, см. правило выше):
 
 **Хорошие места:**
-- Перечисление 3–6 этапов / шагов / фаз / классов → тип `steps`
-- Воронка / конверсия → тип `funnel`
+- Воронка / конверсия / этапы с убывающей шириной → тип `funnel`
+- Перечисление признаков, условий, принципов (без жёсткой последовательности) → тип `cards-num`
+- Пошаговый алгоритм, ошибки, последовательные действия → тип `cards-badge` (шаги оформлять карточками, не кружками)
 - 3–5 ключевых цифр / бенчмарков / цен → тип `stats`
-- Сравнение «было / стало», матрица «X → Y» → тип `comparison`
-- Плотная таблица → тип `table-viz`
+- Сравнение «было / стало», проблема/решение → `stats` с 2 карточками
+- Плотная таблица → собрать из cards-* по образцу design-style.md
 
 **Не добавлять:** в введение, FAQ, кейс, CTA, два раздела подряд.
 
 Для каждого места:
 ```
 [N]. Раздел: «<текст H2>»
-     Тип: funnel / steps / stats / comparison
+     Тип: funnel / cards-num / cards-badge / stats
      Заголовок: <TITLE>
      Подзаголовок: <SUBTITLE>
      Данные: <что внутри>
@@ -162,7 +171,7 @@ mcp__pencil__open_document("new")
 
 Затем собрать по шаблону из `references/pencil-templates.md`:
 - `funnel` — вертикальная воронка с суживающимися блоками
-- `steps` — сетка кружков с номерами
+- `cards-num` / `cards-badge` — карточки с номерами/бейджами (актуальный стиль для шагов; шаблон STEPS «кружки» в pencil-templates.md — legacy, не использовать)
 - `stats` — горизонтальные карточки с цифрами
 - `canvas` — стратегический канвас с колонками
 
@@ -296,6 +305,8 @@ updated_content = str(soup)
 ---
 
 ## Шаг 8 — Обновить WP черновик
+
+**`updated_content` должен быть собран из `content["raw"]`** (Шаг 2), не из `rendered` — иначе шорткоды (`[blog-banner-form id=2666]` и т.п.) запишутся в раскрытом виде и будут потеряны. Перед POST проверить, что шорткоды из исходного raw на месте.
 
 ```python
 resp = requests.post(

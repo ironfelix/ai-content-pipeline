@@ -5,8 +5,8 @@
 
 **Дефолты Фактора:**
 - Domain: `yoursite.ru`
-- SSH: `root@YOUR_SERVER_IP`, WP root `/var/www/domains/yoursite.ru/public_html`
-- WP_AUTH: `("YOUR_WP_USER", "YOUR_WP_APP_PASSWORD")`
+- SSH: `wp_ssh_host` из `<project>/project.md` (дефолт `factor/project.md`), WP root — `wp_root` оттуда же
+- WP_AUTH: читать `wp_user`/`wp_password` из `<project>/project.md` — секреты в тексте скилла запрещены
 - Keys.so token: из `.env` → `KEYSO_API_TOKEN`
 
 **Нужны токены (из .env или project.md):**
@@ -50,7 +50,7 @@ pipeline_path = os.path.join(project_dir, "articles", slug, "pipeline.md")
 ## Шаг 1 — Позиции в Яндексе (Yandex.Webmaster API)
 
 ```python
-import requests, json, os
+import requests, json, os, time
 from datetime import date, timedelta
 
 YWSM_TOKEN = os.environ.get("YANDEX_WEBMASTER_TOKEN", "")
@@ -172,6 +172,8 @@ ai_citations = {
 }
 ```
 
+При записи результата в pipeline.md добавлять пометку **«(метод ненадёжен — спот-проверка)»** — скрейпинг AI-ответов нестабилен, это ориентир, а не точное измерение.
+
 ---
 
 ## Шаг 4 — Сравнение с предыдущей проверкой
@@ -227,7 +229,7 @@ if not ai_citations.get("yandex_ai") == "цитирует":
 | работа с возражениями | 5 | ↑3 | 120 | 7 |
 | отработка возражений в продажах | 8 | = | 45 | — |
 
-ai_citations:
+ai_citations (метод ненадёжен — спот-проверка):
   perplexity: цитирует ✅
   yandex_ai: не цитирует ❌
 
@@ -237,25 +239,6 @@ ai_citations:
 
 # Обновить шаги:
 | 10. Трекинг | /tracker | ✅ | {date} | Яндекс: avg поз.6.5 |
-```
-
----
-
-## Шаг 7 — Обновить llms.txt (если есть)
-
-Если у проекта есть `{project_dir}/data/llms.txt` или сервер доступен по SSH — обновить файл.
-
-```markdown
-# Структура llms.txt для yoursite.ru:
-# Добавить новую статью в список
-
-## Лучшие статьи блога
-- [{H1}]({url}) — {описание из SEO description}
-```
-
-Файл хранится в `factor/data/llms.txt` и деплоится на сервер:
-```bash
-scp factor/data/llms.txt root@YOUR_SERVER_IP:/var/www/domains/yoursite.ru/public_html/llms.txt
 ```
 
 ---
@@ -278,6 +261,10 @@ AI-упоминания:
 Action items (передать в /page-optimizer):
   - [ ] «отработка возражений» (поз.12) → добавить H2-раздел
   - [ ] Яндекс AI → первый абзац должен быть прямым ответом
+
+Следующий шаг — точечные правки по action items:
+  /page-optimizer post_id={wp_post_id}
+  (action items уже записаны в pipeline.md — /page-optimizer Шаг 0 их подхватит)
 
 Следующая проверка: +90d → {date + 90 дней}
 ```
@@ -303,6 +290,6 @@ Action items (передать в /page-optimizer):
 - **Perplexity scraping нестабильно** — если WebFetch блокирует, использовать WebSearch по запросу «perplexity ответ на [ключ] yoursite.ru». Проверить вручную если автоматика не работает.
 - **Первая проверка** — delta не считать, просто зафиксировать базовые позиции. Написать «Базовые позиции (первая проверка)».
 - **Ключи из pipeline.md** — `target_key` в pipeline.md — это основной ключ. Если нужны все ключи страницы — смотреть в листе «Позиции 4-10» в XLSX или передать через аргумент `keys=`.
-- **llms.txt** — файл должен быть валидным markdown, не HTML. Проверить: `curl https://yoursite.ru/llms.txt` — должен отдавать text/plain или text/markdown.
-- **action items в pipeline.md** — добавлять в секцию `## Action items для /page-optimizer`, не перезаписывать — добавлять с датой. /page-optimizer читает их и вычёркивает выполненные.
+- **llms.txt обновляет /publisher при публикации (in-place на сервере)** — tracker его не трогает.
+- **action items в pipeline.md** — добавлять в секцию `## Action items для /page-optimizer`, не перезаписывать — добавлять с датой. /page-optimizer Шаг 0 читает эту секцию, предлагает пункты как план правок и после выполнения отмечает их `[x]`.
 - **KEYSO_API_TOKEN** — токен в `.env`, header `X-Keyso-TOKEN` (с заглавной T). При использовании keys.so для проверки позиций конкурентов: это оценочные данные (WS = частота), не реальные позиции конкретного сайта. Для реальных позиций — только Yandex.Webmaster и GSC.
