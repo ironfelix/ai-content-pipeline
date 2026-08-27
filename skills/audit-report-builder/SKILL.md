@@ -36,7 +36,7 @@ description: Собирает HTML-отчёт из research/*.md файлов п
 ### 3. Запусти build_report.py
 
 ```bash
-python3 /Users/ivanilin/.claude/skills/audit-report-builder/scripts/build_report.py <путь_к_проекту>
+python3 ~/.claude/skills/audit-report-builder/scripts/build_report.py <путь_к_проекту>
 ```
 
 Скрипт:

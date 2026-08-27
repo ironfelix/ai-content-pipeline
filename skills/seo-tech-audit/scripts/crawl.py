@@ -2,6 +2,7 @@
 """
 Простой crawler для технического SEO-аудита одной страницы.
 Usage: python3 crawl.py <url>
+       python3 crawl.py --batch <file_with_urls>   # по URL на строку, вывод JSON-массивом
 Output: JSON со всеми важными мета-данными для SEO.
 """
 import sys
@@ -18,8 +19,25 @@ except ImportError:
 
 
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (compatible; SEO-Audit/1.0; +https://yoursite.ru)"
+    "User-Agent": "Mozilla/5.0 (compatible; SEO-Audit/1.0; +https://factor-prodazh.ru)"
 }
+
+
+def collect_jsonld_types(data, out: list):
+    """Собирает @type из JSON-LD: разворачивает списки, @graph (Yoast) и списочные @type."""
+    if isinstance(data, list):
+        for item in data:
+            collect_jsonld_types(item, out)
+        return
+    if not isinstance(data, dict):
+        return
+    t = data.get("@type")
+    if isinstance(t, list):
+        out.extend(str(x) for x in t)
+    elif t:
+        out.append(str(t))
+    if "@graph" in data:
+        collect_jsonld_types(data["@graph"], out)
 
 
 def fetch(url: str) -> dict:
@@ -41,6 +59,10 @@ def fetch(url: str) -> dict:
 
     if "text/html" not in (r.headers.get("content-type") or ""):
         return result
+
+    # Коррекция кодировки: requests при отсутствии charset ставит iso-8859-1 → мойибейк на windows-1251
+    if not r.encoding or r.encoding.lower() == "iso-8859-1":
+        r.encoding = r.apparent_encoding
 
     soup = BeautifulSoup(r.text, "html.parser")
 
@@ -118,16 +140,19 @@ def fetch(url: str) -> dict:
     for s in jsonld_scripts:
         try:
             data = json.loads(s.string or "{}")
-            if isinstance(data, dict):
-                t = data.get("@type")
-                if t:
-                    result["jsonld_types"].append(t)
-            elif isinstance(data, list):
-                for item in data:
-                    if isinstance(item, dict) and item.get("@type"):
-                        result["jsonld_types"].append(item["@type"])
+            collect_jsonld_types(data, result["jsonld_types"])
         except Exception:
             pass
+
+    # Видимый текст body (без script/style/noscript) — для SSR-проверки и поиска тонких страниц
+    body = soup.find("body")
+    if body:
+        for tag in body.find_all(["script", "style", "noscript"]):
+            tag.decompose()
+        visible_text = " ".join(body.get_text(separator=" ").split())
+        result["visible_text_length"] = len(visible_text)
+    else:
+        result["visible_text_length"] = 0
 
     # Viewport (мобилка)
     vp = soup.find("meta", attrs={"name": "viewport"})
@@ -140,14 +165,31 @@ def fetch(url: str) -> dict:
     return result
 
 
-def main():
-    if len(sys.argv) < 2:
-        print("Usage: python3 crawl.py <url>", file=sys.stderr)
-        sys.exit(1)
-    url = sys.argv[1]
+def normalize_url(url: str) -> str:
     if not url.startswith(("http://", "https://")):
         url = "https://" + url
-    data = fetch(url)
+    return url
+
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: python3 crawl.py <url>\n       python3 crawl.py --batch <file_with_urls>", file=sys.stderr)
+        sys.exit(1)
+
+    if sys.argv[1] == "--batch":
+        if len(sys.argv) < 3:
+            print("Usage: python3 crawl.py --batch <file_with_urls>", file=sys.stderr)
+            sys.exit(1)
+        with open(sys.argv[2]) as f:
+            urls = [line.strip() for line in f if line.strip() and not line.strip().startswith("#")]
+        results = []
+        for i, url in enumerate(urls, 1):
+            print(f"[{i}/{len(urls)}] {url}", file=sys.stderr)
+            results.append(fetch(normalize_url(url)))
+        print(json.dumps(results, ensure_ascii=False, indent=2))
+        return
+
+    data = fetch(normalize_url(sys.argv[1]))
     print(json.dumps(data, ensure_ascii=False, indent=2))
 
 

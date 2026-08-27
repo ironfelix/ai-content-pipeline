@@ -10,8 +10,8 @@ description: Находит органических конкурентов са
 ## Эталон формата
 
 **ОБЯЗАТЕЛЬНО прочитай** перед началом:
-- `/Users/ivanilin/Documents/ivanilin/ai-seo/factor/research/gap-analysis-results.md` — формат gap-анализа
-- `/Users/ivanilin/Documents/ivanilin/ai-seo/factor/research/competitive-analysis-kev.md` — формат детального анализа топ-5 по конкретному запросу
+- `<workdir>/ai-seo/factor/research/gap-analysis-results.md` — формат gap-анализа
+- `<workdir>/ai-seo/factor/research/competitive-analysis-kev.md` — формат детального анализа топ-5 по конкретному запросу
 
 Твой output повторяет эти форматы.
 
@@ -58,10 +58,14 @@ python3 scripts/keyso_client.py competitors <domain> --limit 30
 
 Для подтверждённых конкурентов:
 ```
-python3 scripts/keyso_client.py gap <our_domain> <competitor1> <competitor2> ...
+python3 scripts/keyso_client.py gap <our_domain> <competitor1> <competitor2> ... [--top 1000] [--max-pages 10]
 ```
 
-Получи ключи, которые есть у конкурентов и нет у нас (или у нас в топ-50+, а у них в топ-10).
+Скрипт выгружает органические ключи (`keys`, с пагинацией) по нашему домену и по каждому конкуренту, затем делает set-difference по нормализованной фразе (lower, ё→е) в Python. В выводе — ключи, которые есть хотя бы у одного конкурента и отсутствуют у нас: для каждого — частота `ws`, у каких конкурентов есть (`competitors`, `competitors_count`), лучшая позиция среди них (`best_pos`, `best_competitor`). Сортировка по частоте. Прогресс выгрузки («домен: получено N ключей») идёт в stderr.
+
+Каждый домен = до `--max-pages` запросов к API (по 1000 ключей на страницу) — для больших доменов следи за квотой.
+
+Отдельная подкоманда `lost <domain>` — потерянные ключи домена (endpoint lost keys.so, фразы где домен выпал из топа). Это НЕ gap vs конкуренты, не путать.
 
 ### 5. Кластеризация gap-ключей
 

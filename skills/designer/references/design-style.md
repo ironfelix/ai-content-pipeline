@@ -525,4 +525,4 @@ body { font-family:'Raleway','Helvetica Neue',Arial,sans-serif; background:trans
 | Бенчмарки, нормы конверсий, ключевые показатели | `stats` |
 | До/после, проблема/решение (2 колонки) | `stats` (2 карточки: проблема / результат) |
 
-**ЗАПРЕЩЕНО:** кружки (`.step-circle`) — устаревший стиль. Эталон — infographic-stratsessiya-1.png и infographic-stratsessiya-2.png на yoursite.ru.
+**ЗАПРЕЩЕНО:** кружки (`.step-circle`) — устаревший стиль. Эталон — infographic-stratsessiya-1.png и infographic-stratsessiya-2.png на factor-prodazh.ru.

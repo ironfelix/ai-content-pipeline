@@ -17,7 +17,7 @@ python3 ~/.claude/skills/link-check/link_checker.py <домен> [max_pages] [--
 - `--workers N` — параллелизм (дефолт 8; для слабых/нестабильных серверов ставь 4)
 
 ## Как действовать
-1. Уточнить домен(ы). Дефолт-список клиента: `https://crmgroup.ru`, `https://emailsoldiers.ru` (+ при необходимости yoursite.ru, agentiq.ru).
+1. Уточнить домен(ы). Дефолт-список клиента: `https://crmgroup.ru`, `https://emailsoldiers.ru` (+ при необходимости factor-prodazh.ru, agentiq.ru).
 2. Прогнать сначала внутренние ссылки (быстро, главное по SEO/UX). Потом по желанию `--external`.
 3. ⚠️ **Хрупкие серверы беречь:** emailsoldiers (был disk-инцидент) — `--workers 4`, кап 200-300 страниц, не гнать весь сайт залпом.
 4. Большой прогон — пускать в фоне (`run_in_background`), это нормально.
@@ -25,7 +25,7 @@ python3 ~/.claude/skills/link-check/link_checker.py <домен> [max_pages] [--
 
 ## Починка найденного
 - **Битая внутренняя ссылка / картинка в статье блога** — правится через WP REST (контент редактируется): найти правильный URL и заменить, либо убрать ссылку. crmgroup: `wp/v2/blog`, ES: `wp/v2/posts`. H1/Title лендингов НЕ через REST (правятся через FTP/functions.php — доступы клиентов в памяти проекта).
-- Доступы WP REST: crmgroup `ekaterina.shapochkina@crmgroup.ru`, ES `ivan@emailsoldiers.ru` — пароли в памяти проекта / `<project>/project.md`, не в тексте скилла.
+- Доступы WP REST (логин + пароль): брать из `<project>/project.md` или памяти проекта, не хранить в тексте скилла.
 
 ## Что считается шумом (не битое)
 xmlrpc.php, `/feed`, `?replytocom`, `?rsd`, `?pingback`, `/comment-page`, `/trackback`, wp-login/wp-admin — авто-ссылки WordPress, игнорируются фильтром.

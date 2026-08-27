@@ -64,7 +64,7 @@ else:
 - `color_accent`, `color_bg`, `color_text`, `font` — токены для HTML-режима
 
 Дефолты Фактора (если project.md нет):
-- `wp_url` = `https://yoursite.ru`
+- `wp_url` = `https://factor-prodazh.ru`
 - `wp_auth` — учётку читать из `<project>/project.md` (поле `wp_auth`) или `.env`; секреты в тексте скилла не хранить
 - `wp_post_type` = `blog`
 - `color_accent` = `#CC955B` / `color_bg` = `#ECEADF` / `color_text` = `#252525` / `font` = `Raleway`
@@ -86,7 +86,10 @@ resp = requests.get(
 )
 post = resp.json()
 content_html = post["content"]["raw"]  # НЕ "rendered"!
-print(post["title"]["raw"])
+print(post["title"]["raw"], post["slug"])  # сверить с ожидаемой статьёй ДО записи
+# 🔴 Гард: designer работает ТОЛЬКО с черновиками. Неверный ID = молчаливая правка live-страницы.
+if post["status"] != "draft":
+    raise SystemExit(f"Пост {wp_id} имеет статус {post['status']} — designer работает только с draft")
 ```
 
 ---
@@ -101,7 +104,7 @@ viz_markers = re.findall(r'\[ВИЗУАЛ:\s*(.+?)\]', article_text)
 # каждый разбить по '|' на тип=/заголовок=/данные=
 ```
 
-Для каждой метки: `тип` → шаблон (funnel / cards-num / cards-badge / stats — реальные шаблоны из `references/design-style.md`), `заголовок` → TITLE, `данные` → содержимое схемы. Легаси-типы из старых меток маппить: `steps` → cards-num (шаги оформлять карточками; кружки step-circle устарели), `comparison` → stats с 2 карточками «проблема / результат», `table-viz` → собрать из cards-* по образцу design-style.md. После генерации PNG — удалить текстовую метку из контента (она техническая, читателю не нужна).
+Для каждой метки: `тип` → шаблон (funnel / cards-num / cards-badge / stats — реальные шаблоны из `references/design-style.md`), `заголовок` → TITLE, `данные` → содержимое схемы. Легаси-типы из старых меток маппить: `steps` → cards-badge (последовательные шаги — карточки с бейджем; кружки step-circle устарели), `comparison` → stats с 2 карточками «проблема / результат», `table-viz` → собрать из cards-* по образцу design-style.md. После генерации PNG — удалить текстовую метку из контента (она техническая, читателю не нужна).
 
 ### 🔴 ПРАВИЛО: текст инфографики = текст редактора. НЕ сочинять.
 
@@ -166,7 +169,8 @@ with open(tokens_path) as f:
 **4A.2 — Создать инфографику в Pencil**
 
 ```
-mcp__pencil__open_document("new")
+mcp__pencil__get_editor_state(include_schema: true)
+# затем сборка узлов через mcp__pencil__batch_design (см. references/pencil-templates.md). Инструмента open_document НЕТ.
 ```
 
 Затем собрать по шаблону из `references/pencil-templates.md`:
@@ -288,9 +292,12 @@ media_id_1, media_url_1 = upload_to_wp_media("/tmp/infographic_1.png", "infograp
        src="{url}" alt="{alt}" width="1150" height="740"
        style="max-width:100%; cursor:zoom-in;" />
 </a>
-<p style="margin:10px 0 0; font-size:13px; color:#888; text-align:center;">{caption}</p>
 </div>
+<!-- caption НЕ добавлять (см. правило ниже). Только если есть ДРУГОЙ текст (источник/атрибуция):
+     <p style="margin:10px 0 0; font-size:13px; color:#888; text-align:center;">{источник}</p> -->
 ```
+
+**🔴 Подпись `{caption}` НЕ дублирует заголовок/подзаголовок инфографики.** Title и subtitle уже отрисованы ВНУТРИ картинки — если caption = subtitle, читатель видит одну и ту же строку дважды (реальный дефект батча 4423–4433). Правило: инфографики этого билдера самодостаточны → **внешний `<p>`-caption опущен — в шаблоне выше его нет, не добавлять.** Оставлять caption только если это ДРУГОЙ текст: источник данных, пояснение к схеме, атрибуция — то, чего на самой картинке нет.
 
 ```python
 from bs4 import BeautifulSoup
@@ -322,7 +329,31 @@ else:
 
 ---
 
+## Шаг 9 — Отметить прогон в pipeline.md
+
+После записи контента (Шаг 8) обновить строку 8b в `<project>/articles/<slug>/pipeline.md`. Slug — из поста (Шаг 2) или аргумента, проект — из `project=`; если определить нельзя — спросить пользователя.
+
+```
+| 8b. Инфографика | /designer | ✅ | <дата> | N схем |
+```
+
+Осознанное решение «схемы не нужны» — легитимный результат, фиксировать так (без записи /publisher вернёт статью на /designer):
+
+```
+| 8b. Инфографика | /designer | ✅ | <дата> | 0 схем: <причина> |
+```
+
+Например: `0 схем: статья без данных/таблиц/воронок`. Если pipeline.md не существует — шаг пропустить и отметить в финальном выводе: «pipeline.md не найден — статус 8b не записан».
+
+---
+
 ## Gotchas
+
+**🛡️ WAF / fail2ban (общая механика площадок).** Сервер банит IP за серию ошибочных или слишком частых запросов:
+- после **401/403 НЕ ретраить** — это не транзиент: проверить креды (не ушёл ли плейсхолдер вместо пароля из secrets);
+- между REST-запросами держать паузу 1–2 с (конвейер делает 10–20 запросов подряд);
+- если в ответ пришла HTML-страница вместо JSON — это бан-страница WAF: остановиться и подождать, не долбить.
+
 
 **Общие:**
 - WP CPT `blog` → endpoint `/wp/v2/blog/{id}`, НЕ `/wp/v2/posts/{id}`
@@ -337,14 +368,7 @@ else:
   <div style="display:flex; gap:10px; align-items:flex-start; margin:0 !important;"><span style="color:#CC955B; font-size:18px; line-height:1.5; flex-shrink:0;">•</span><div style="margin:0 !important;">Текст с <a href="/url/">ссылкой</a>.</div></div>
   </div>
   ```
-- **FAQ `<details>` — тема добавляет каждому border/border-radius/margin** → отдельные боксы вместо единого аккордеона. Добавить `!important`-сбросы:
-  ```html
-  <details style="border-bottom:1px solid #E8E8E0; margin:0 !important; padding:0 !important; border-radius:0 !important; border-left:none !important; border-right:none !important; border-top:none !important;">
-    <summary style="...; margin:0 !important;">...</summary>
-    <div style="...; margin:0 !important;">...</div>
-  </details>
-  ```
-  Последний `<details>`: `border:none !important` вместо `border-bottom`.
+- **FAQ — НЕ зона designer.** FAQ-аккордеон делает /publisher (голые `<details><summary>` БЕЗ inline-стилей — тема faktor-template сама стилизует). Designer в FAQ инфографику не ставит (см. Шаг 3 «Не добавлять: FAQ») и стили `<details>` не трогает.
 - **`<div>` внутри flex получает theme margin** → всегда `margin:0 !important` на flex-items внутри кастомных компонентов (step cards, bullet lists).
 
 **HTML режим:**
@@ -371,7 +395,8 @@ else:
    Тип: funnel | WP media ID: XXXX
 
 2. «5 шагов к построению ОП» → после H2 «Этапы построения отдела продаж»
-   Тип: steps | WP media ID: YYYY
+   Тип: cards-badge | WP media ID: YYYY
 
 Preview: {WP_URL}/?post_type={WP_POST_TYPE}&p={wp_id}&preview=true
+Pipeline: строка 8b отмечена ✅ (или: pipeline.md не найден — статус 8b не записан)
 ```
