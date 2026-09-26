@@ -4,7 +4,7 @@
 
 ```
 Фон контейнера:   #ECEADF  (тёплый бежевый)
-Граница:          2px dashed rgba(204,149,91,0.55)
+Граница:          1px solid rgba(37,37,37,0.14) + тень 0 14px 34px rgba(37,37,37,0.08)
 Радиус:           18px
 Золото (акцент):  #CC955B
 Золото светлое:   #E3A96C
@@ -26,7 +26,8 @@ body { font-family: 'Raleway','Helvetica Neue',Arial,sans-serif; background: tra
 .infographic {
   width: 1100px;
   background: #ECEADF;
-  border: 2px dashed rgba(204,149,91,0.55);
+  border: 1px solid rgba(37,37,37,0.14);
+  box-shadow: 0 1px 2px rgba(37,37,37,0.05), 0 14px 34px rgba(37,37,37,0.08);
   border-radius: 18px;
   padding: 48px 72px 56px;
   position: relative;
@@ -62,7 +63,8 @@ body { font-family: 'Raleway','Helvetica Neue',Arial,sans-serif; background: tra
 body { font-family:'Raleway','Helvetica Neue',Arial,sans-serif; background:transparent; }
 .infographic {
   width:1100px; background:#ECEADF;
-  border:2px dashed rgba(204,149,91,0.55);
+  border:1px solid rgba(37,37,37,0.14);
+  box-shadow:0 1px 2px rgba(37,37,37,0.05), 0 14px 34px rgba(37,37,37,0.08);
   border-radius:18px; padding:48px 72px 56px;
   position:relative; overflow:hidden;
 }
@@ -219,7 +221,8 @@ body { font-family:'Raleway','Helvetica Neue',Arial,sans-serif; background:trans
 body { font-family:'Raleway','Helvetica Neue',Arial,sans-serif; background:transparent; }
 .infographic {
   width:1100px; background:#ECEADF;
-  border:2px dashed rgba(204,149,91,0.55);
+  border:1px solid rgba(37,37,37,0.14);
+  box-shadow:0 1px 2px rgba(37,37,37,0.05), 0 14px 34px rgba(37,37,37,0.08);
   border-radius:18px; padding:48px 52px 52px;
   position:relative; overflow:hidden;
 }
@@ -323,7 +326,8 @@ body { font-family:'Raleway','Helvetica Neue',Arial,sans-serif; background:trans
 body { font-family:'Raleway','Helvetica Neue',Arial,sans-serif; background:transparent; }
 .infographic {
   width:1100px; background:#ECEADF;
-  border:2px dashed rgba(204,149,91,0.55);
+  border:1px solid rgba(37,37,37,0.14);
+  box-shadow:0 1px 2px rgba(37,37,37,0.05), 0 14px 34px rgba(37,37,37,0.08);
   border-radius:18px; padding:48px 52px 52px;
   position:relative; overflow:hidden;
 }
@@ -436,7 +440,8 @@ body { font-family:'Raleway','Helvetica Neue',Arial,sans-serif; background:trans
 body { font-family:'Raleway','Helvetica Neue',Arial,sans-serif; background:transparent; }
 .infographic {
   width:1100px; background:#ECEADF;
-  border:2px dashed rgba(204,149,91,0.55);
+  border:1px solid rgba(37,37,37,0.14);
+  box-shadow:0 1px 2px rgba(37,37,37,0.05), 0 14px 34px rgba(37,37,37,0.08);
   border-radius:18px; padding:44px 64px 52px;
   position:relative; overflow:hidden;
 }

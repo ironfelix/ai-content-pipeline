@@ -18,6 +18,8 @@ Output:
     <project>/reports/audit-report.html
 """
 import argparse
+import fnmatch
+import html as html_lib
 import re
 import sys
 import datetime
@@ -40,6 +42,22 @@ SECTION_META = {
 }
 DEFAULT_SECTION = {"title": "Дополнительно", "tag": "EXTRA"}
 
+# Файлы аудита, которые попадают в отчёт без --include-extra:
+# точные имена из SECTION_ORDER + glob-паттерны (по stem, без .md)
+AUDIT_GLOB_PATTERNS = [
+    "competitive-analysis-*",
+    "gap-analysis-*",
+    "tech-seo-*",
+    "content-*",
+    "audit-*",
+]
+
+
+def is_audit_file(stem: str) -> bool:
+    if stem in SECTION_ORDER:
+        return True
+    return any(fnmatch.fnmatch(stem, pat) for pat in AUDIT_GLOB_PATTERNS)
+
 
 def parse_brief(brief_path: Path) -> dict:
     out = {"client": "", "url": "", "niche": "", "region": ""}
@@ -51,10 +69,19 @@ def parse_brief(brief_path: Path) -> dict:
         m = re.search(rf"\|\s*{label}\s*\|\s*([^|\n]+?)\s*\|", text, re.IGNORECASE)
         return m.group(1).strip() if m else ""
 
-    out["url"] = get("URL")
-    out["client"] = get("Название")
-    out["niche"] = get("Ниша")
-    out["region"] = get("Целевой регион") or get("География поиска")
+    def get_kv(label):
+        # fallback: строки вида "Ключ: значение" (в т.ч. "- **Ключ:** значение")
+        m = re.search(
+            rf"^\s*(?:[-*]\s+)?(?:\*\*)?{label}(?:\*\*)?\s*[:—]\s*(.+?)\s*$",
+            text, re.IGNORECASE | re.MULTILINE,
+        )
+        return m.group(1).strip().strip("*").strip() if m else ""
+
+    out["url"] = get("URL") or get_kv("URL")
+    out["client"] = get("Название") or get_kv("Название")
+    out["niche"] = get("Ниша") or get_kv("Ниша")
+    out["region"] = (get("Целевой регион") or get("География поиска") or get("Регион")
+                     or get_kv("Целевой регион") or get_kv("География поиска") or get_kv("Регион"))
     return out
 
 
@@ -87,14 +114,15 @@ def parse_design_tokens(tokens_path: Path) -> dict:
     text = tokens_path.read_text(encoding="utf-8")
 
     def find_hex(label_keywords):
+        # kw — подстрока метки в ячейке таблицы (не regex): экранируем спецсимволы
         for kw in label_keywords:
-            m = re.search(rf"\|[^|]*{kw}[^|]*\|\s*`?(#[0-9A-Fa-f]{{6}})`?", text, re.IGNORECASE)
+            m = re.search(rf"\|[^|]*{re.escape(kw)}[^|]*\|\s*`?(#[0-9A-Fa-f]{{6}})`?", text, re.IGNORECASE)
             if m:
                 return m.group(1)
         return None
 
     tokens = dict(defaults)
-    accent = find_hex(["primary accent", "brand", "Primary accent"])
+    accent = find_hex(["primary accent", "brand"])
     if accent:
         tokens["accent"] = accent
     accent_soft = find_hex(["soft accent bg", "soft accent", "accent bg"])
@@ -110,7 +138,7 @@ def parse_design_tokens(tokens_path: Path) -> dict:
     bg_main = find_hex(["background main", "bg main"])
     if bg_main:
         tokens["bg"] = bg_main
-    border = find_hex(["^border$", "border "])
+    border = find_hex(["border"])
     if border:
         tokens["border"] = border
     crit = find_hex(["pink", "magenta", "cta", "critical"])
@@ -118,7 +146,6 @@ def parse_design_tokens(tokens_path: Path) -> dict:
         tokens["crit"] = crit
 
     # Fonts
-    font_block = re.search(r"Manrope[^`\n]*", text)
     if "Manrope" in text:
         tokens["font_headline"] = "Manrope"
     if "Inter" in text:
@@ -127,11 +154,58 @@ def parse_design_tokens(tokens_path: Path) -> dict:
     return tokens
 
 
-def read_md_files(research_dir: Path) -> dict:
-    files = {}
-    for md in research_dir.glob("*.md"):
-        files[md.stem] = md.read_text(encoding="utf-8")
+def read_md_files(research_dir: Path, include_extra: bool = False) -> dict:
+    files, skipped = {}, []
+    for md in sorted(research_dir.glob("*.md")):
+        if include_extra or is_audit_file(md.stem):
+            files[md.stem] = md.read_text(encoding="utf-8")
+        else:
+            skipped.append(md.name)
+    if skipped:
+        print(f"SKIP: {len(skipped)} файлов research/ не похожи на аудит и не включены "
+              f"(--include-extra чтобы включить):", file=sys.stderr)
+        for name in skipped:
+            print(f"  - {name}", file=sys.stderr)
     return files
+
+
+def rewrite_cross_links(body_html: str, included_stems: set) -> str:
+    """Переписывает кросс-ссылки между research-файлами на внутренние якоря отчёта.
+
+    - <a href="tech-seo-audit.md#x"> → <a href="#section-tech-seo-audit">
+      (секции получают id="section-<stem>", фрагмент #x внутри файла отбрасывается —
+      таких якорей в отчёте нет)
+    - ссылки на файлы, не попавшие в отчёт, → просто текст ссылки
+    - голые упоминания "tech-seo-audit.md#x" в тексте → ссылка на якорь секции
+    """
+    def anchor_for(fname: str):
+        stem = fname.rsplit("/", 1)[-1][:-3]  # basename без .md
+        return f"#section-{stem}" if stem in included_stems else None
+
+    def repl_a(m):
+        fname, text = m.group(1), m.group(3)
+        target = anchor_for(fname)
+        return f'<a href="{target}">{text}</a>' if target else text
+
+    out = re.sub(
+        r'<a\s+href="([\w][\w./-]*\.md)(#[^"]*)?"[^>]*>(.*?)</a>',
+        repl_a, body_html, flags=re.S | re.I,
+    )
+
+    # голые упоминания — только в текстовых узлах (не внутри тегов, <a>, <pre>, <code>)
+    parts = re.split(
+        r'(<a\b[^>]*>.*?</a>|<(?:pre|code)\b[^>]*>.*?</(?:pre|code)>|<[^>]+>)',
+        out, flags=re.S | re.I,
+    )
+    bare = re.compile(r'([\w][\w.-]*\.md)(#[\w\-.]*[\w-])?')
+
+    def repl_bare(m):
+        target = anchor_for(m.group(1))
+        return f'<a href="{target}">{m.group(0)}</a>' if target else m.group(0)
+
+    for i in range(0, len(parts), 2):
+        parts[i] = bare.sub(repl_bare, parts[i])
+    return "".join(parts)
 
 
 def strip_h1(md_text: str) -> tuple:
@@ -572,7 +646,7 @@ DARK_CSS_PATCH = """
 """
 
 
-def build_report(project_path: Path, accent_override: str = None, client_override: str = None, dark: bool = False) -> Path:
+def build_report(project_path: Path, accent_override: str = None, client_override: str = None, dark: bool = False, include_extra: bool = False) -> Path:
     research_dir = project_path / "research"
     reports_dir = project_path / "reports"
     brief_path = project_path / "data" / "brief.md"
@@ -598,13 +672,14 @@ def build_report(project_path: Path, accent_override: str = None, client_overrid
     if accent_override:
         tokens["accent"] = accent_override
 
-    files = read_md_files(research_dir)
+    files = read_md_files(research_dir, include_extra=include_extra)
 
     ordered_keys = [k for k in SECTION_ORDER if k in files]
     for k in sorted(files.keys()):
         if k not in ordered_keys:
             ordered_keys.append(k)
 
+    included_stems = set(ordered_keys)
     sections_list = []
     for idx, key in enumerate(ordered_keys, start=1):
         md_text = files[key]
@@ -613,7 +688,7 @@ def build_report(project_path: Path, accent_override: str = None, client_overrid
         display_title = meta["title"] if key in SECTION_META else (h1_title or key)
         tag = meta["tag"]
 
-        body_html = md_to_html(body)
+        body_html = rewrite_cross_links(md_to_html(body), included_stems)
         sec_html = f'''
 <section class="section" id="section-{key}">
   <div class="section-head">
@@ -632,10 +707,10 @@ def build_report(project_path: Path, accent_override: str = None, client_overrid
     toc_html = f"<ul>{toc_items}</ul>"
     sections_html = "\n".join(s[2] for s in sections_list)
 
-    client_name = brief.get("client") or project_path.name
-    url = brief.get("url") or ""
-    niche = brief.get("niche") or "—"
-    region = brief.get("region") or "—"
+    client_name = html_lib.escape(brief.get("client") or project_path.name)
+    url = html_lib.escape(brief.get("url") or "", quote=True)
+    niche = html_lib.escape(brief.get("niche") or "—")
+    region = html_lib.escape(brief.get("region") or "—")
     url_link = f'<a href="{url}" target="_blank">{url}</a>' if url else "—"
     date_str = datetime.date.today().isoformat()
     file_chips = " ".join(f"<code>{k}.md</code>" for k in ordered_keys)
@@ -682,6 +757,8 @@ def main():
     parser.add_argument("--accent", default=None)
     parser.add_argument("--client", default=None)
     parser.add_argument("--dark", action="store_true", help="Dark theme (like aimclo)")
+    parser.add_argument("--include-extra", action="store_true",
+                        help="Включить в отчёт все research/*.md, а не только файлы аудита (whitelist)")
     args = parser.parse_args()
 
     path = Path(args.project_path).expanduser().resolve()
@@ -689,7 +766,8 @@ def main():
         print(f"ERROR: {path} not found", file=sys.stderr)
         sys.exit(1)
 
-    output = build_report(path, accent_override=args.accent, client_override=args.client, dark=args.dark)
+    output = build_report(path, accent_override=args.accent, client_override=args.client,
+                          dark=args.dark, include_extra=args.include_extra)
     size_kb = output.stat().st_size / 1024
     print(f"✓ Report built: {output}")
     print(f"  Size: {size_kb:.1f} KB")

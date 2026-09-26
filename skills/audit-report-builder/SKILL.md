@@ -40,10 +40,17 @@ python3 ~/.claude/skills/audit-report-builder/scripts/build_report.py <путь_
 ```
 
 Скрипт:
-- Читает все `research/*.md`
+- Читает `research/*.md` из **whitelist аудита**: `audit-summary`, `gap-analysis`, `content-audit`, `tech-seo-audit` + паттерны `competitive-analysis-*`, `gap-analysis-*`, `tech-seo-*`, `content-*`, `audit-*`. Остальные файлы (статейные ресёрчи и т.п.) в отчёт НЕ попадают — их список печатается в stderr
+- Переписывает кросс-ссылки между research-файлами (`[...](tech-seo-audit.md#x)` и голые `file.md#x`) на внутренние якоря `#section-<имя-файла>`; ссылки на файлы вне отчёта превращает в простой текст
 - Парсит через python `markdown` библиотеку
 - Применяет HTML-шаблон
 - Сохраняет в `reports/audit-report.html`
+
+Флаги:
+- `--include-extra` — включить в отчёт ВСЕ `research/*.md`, а не только whitelist аудита. Использовать осознанно: у старых проектов в research/ лежат десятки статейных ресёрчей
+- `--dark` — тёмная тема отчёта (стиль aimclo)
+- `--accent "#hex"` — цвет акцента
+- `--client "Название"` — переопределить имя клиента из brief.md
 
 ### 4. Верифицируй результат
 
@@ -82,7 +89,7 @@ pip3 install --user markdown pygments
 - [ ] Размер > 10 KB
 - [ ] Пользователь видел путь и знает, как открыть
 - [ ] В hero правильные название клиента и URL из brief.md
-- [ ] Все research-файлы попали в отчёт (ни один не потерян)
+- [ ] Все аудит-файлы из whitelist попали в отчёт; список пропущенных (не-аудитных) из stderr показан пользователю
 
 ## Анти-паттерны
 

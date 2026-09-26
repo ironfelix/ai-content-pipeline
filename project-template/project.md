@@ -25,6 +25,7 @@ cases_url: YOUR_DOMAIN.com/cases/
 do_not_mention: |
   Конкуренты и темы которые нельзя упоминать.
   Пример: Instagram, Facebook, CompetitorName
+do_not_publish: myproject/data/do-not-publish.md   # внутренние данные, которые нельзя выносить в статью (/quality-gate М34)
 
 ## Пути
 research_dir: myproject/research/
