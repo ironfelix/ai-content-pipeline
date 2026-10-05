@@ -5,6 +5,8 @@ description: Финальный шаг перед публикацией ста�
 
 # Publisher — публикация статьи
 
+> **Модель (Claude Code): Claude Opus 5.5.** Скилл и все его субагенты работают на Opus 5.5: при запуске субагентов указывать `model: "opus"`, на sonnet и haiku не понижать. Если Opus недоступен (ошибка авторизации 403), повторить запуск или остановиться и сообщить; молча другую модель не брать. На сервер (Codex) это правило не действует.
+
 ## Шаг 0 — Загрузить конфиг проекта
 
 **Определить проект** — по аргументу `project=` или дефолт `factor`:
@@ -32,7 +34,7 @@ else:
 Если `project.md` найден — использовать его значения везде в скрипте:
 ```python
 # Читать из project.md (значения — из соответствующих ключей файла):
-WP_URL = config["wp_url"]           # напр. https://factor-prodazh.ru
+WP_URL = config["wp_url"]           # напр. https://yoursite.ru
 WP_AUTH = (config["wp_user"], config["wp_password"])
 WP_POST_TYPE = config.get("wp_post_type", "post")
 WP_AUTHOR_ID = config.get("wp_author_id", 1)
@@ -42,7 +44,7 @@ BLOG_BANNER_END = config.get("blog_banner_end", "[blog-banner-form id=2666]")
 ```
 
 Если `project.md` НЕ найден → фолбэк на дефолты Фактора:
-- `WP_URL` = `https://factor-prodazh.ru`
+- `WP_URL` = `https://yoursite.ru`
 - `WP_AUTH` = читать `wp_user`/`wp_password` из `factor/project.md` (секреты в тексте скилла запрещены; если project.md недоступен — взять из `.env` или спросить пользователя)
 - `WP_POST_TYPE` = `blog`
 - `WP_AUTHOR_ID` = `523`
@@ -284,7 +286,7 @@ post_id = resp.json()["id"]
 - [ ] TOC-блок после лида, все H2 имеют `id`-якоря
 - [ ] Нет `[ПРОВЕРИТЬ]` и `[нужна деталь от клиента]` в тексте
 - [ ] **Тире (—): не более 8 в статье** — посчитать явно: `grep -o '—' file.html | wc -l`. Если больше 8 — вернуть в редактуру.
-- [ ] Есть кейс из factor-prodazh.ru/case/ с конкретными деталями
+- [ ] Есть кейс из yoursite.ru/case/ с конкретными деталями
 - [ ] Внутренние ссылки: 2–4 штуки (макс 1 коммерческая, по internal-linking-rules.md), анкоры описательные (не «здесь»/«подробнее», НИКОГДА не сырой путь `/case/…` или URL как видимый текст)
 - [ ] Минимум 1 ссылка на релевантную услугу (таблица в WP_BLOG_TECHNICAL.md раздел 14.2)
 - [ ] Списки 3+ однородных элементов → таблицы
@@ -793,7 +795,7 @@ curl -s {WP_URL}/robots.txt
 
 Проверить: НЕТ секций `User-agent: <бот>` + `Disallow: /` для retrieval-ботов: `OAI-SearchBot`, `PerplexityBot`, `YandexAdditional`, `Claude-SearchBot`, `GPTBot`. Имплицитный allow (`User-Agent: *` без блокировок) — OK, явные Allow-секции не обязательны.
 
-Статус factor-prodazh.ru на 2026-06-12: ✅ имплицитный allow, AI-боты не заблокированы.
+Статус yoursite.ru на 2026-06-12: ✅ имплицитный allow, AI-боты не заблокированы.
 
 Если найдена блокировка retrieval-бота → СТОП, показать пользователю, предложить убрать через SSH.
 
@@ -826,7 +828,7 @@ grep -c '<p>Вопрос:' article.html        # = 0 — FAQ параграфа�
 grep -o ' — ' article.html | wc -l       # ≤ 8 — лимит тире на статью
 ```
 
-- Вложенные `<a>` найдены → заменить на одинарную ссылку с полным href: `<a href="https://factor-prodazh.ru/case/full-slug/">текст</a>`
+- Вложенные `<a>` найдены → заменить на одинарную ссылку с полным href: `<a href="https://yoursite.ru/case/full-slug/">текст</a>`
 - `<p>Вопрос:` найден → конвертировать в `<details><summary>` аккордеон
 - Тире > 8 → вернуть в редактуру
 
@@ -856,7 +858,7 @@ requests.post(url, json={"status": "publish"}, auth=auth)
 
 llms.txt владеет ТОЛЬКО /publisher — обновление in-place на сервере. Другие скиллы (/tracker и пр.) файл не трогают.
 
-Дефолтный путь: `/var/www/domains/factor-prodazh.ru/public_html/llms.txt`
+Дефолтный путь: `/var/www/domains/yoursite.ru/public_html/llms.txt`
 
 ```python
 import subprocess
@@ -867,7 +869,7 @@ import subprocess
 desc_short = seo_description[:80].rstrip()
 new_line = f"- [{post_title}](https://{WP_DOMAIN}/blog/{slug}/): {desc_short}"
 
-llms_path = config.get("llms_txt_path", "/var/www/domains/factor-prodazh.ru/public_html/llms.txt")
+llms_path = config.get("llms_txt_path", "/var/www/domains/yoursite.ru/public_html/llms.txt")
 
 # Добавить в начало секции ## Блог (новые статьи сверху)
 ssh_script = f"""
@@ -914,7 +916,7 @@ print(result.stdout or result.stderr)
 - если в ответ пришла HTML-страница вместо JSON — это бан-страница WAF: остановиться и подождать, не долбить.
 
 - **🔴 Не публиковать до «публикуем»** — см. HARD GATE: ждать буквально слово «публикуем», «да»/«ок»/«всё ок»/«хорошо» НЕ считаются.
-- **Ссылки на кейсы — полный href без вложенных `<a>`** — запрещено генерировать `<a href="/case/full-slug/"><a href="/case/">текст</a>slug</a>`. Правильный формат: `<a href="https://factor-prodazh.ru/case/full-slug/">текст</a>`. Двойные вложенные `<a>` рендерятся как broken link: текст + slug после закрывающего тега.
+- **Ссылки на кейсы — полный href без вложенных `<a>`** — запрещено генерировать `<a href="/case/full-slug/"><a href="/case/">текст</a>slug</a>`. Правильный формат: `<a href="https://yoursite.ru/case/full-slug/">текст</a>`. Двойные вложенные `<a>` рендерятся как broken link: текст + slug после закрывающего тега.
 - **Анкор ссылки — описательный текст, НИКОГДА не сырой URL/путь.** Видимый текст любой ссылки (`/case/`, `/services/`, `/blog/`, внешней) не должен быть путём или адресом. ❌ `<a href="/case/keys-promyshlennyye-reduktory-2/">/case/keys-promyshlennyye-reduktory-2/</a>` (читателю показывается технический путь). ✅ `<a href="/case/keys-promyshlennyye-reduktory-2/">кейс «Промышленные редукторы»</a>`. Анкор describes цель: для кейса — название компании/отрасли в кавычках, для услуги — суть услуги («бесплатную диагностику отдела продаж»), для статьи — её тему. Перед публикацией — regex-скан контента: любой `<a ...>` где видимый текст матчит `^/(case|services|blog)/` или `^https?://` = ошибка, заменить на описательный анкор. Правило действует и когда ссылку сгенерировал автор/writer, и когда её вставляет паблишер (сноска «Цифры кейса на странице /case/...» — тот же дефект).
 - **post_type = 'blog', не 'post'** — только для fallback-сценария без настроенного `wp_rest_base`: тогда WP API создаёт `post` и тип нужно менять через `wp db query`, иначе статья не появится в блоге. При создании через CPT rest_base (напр. `/wp/v2/blog`) шаг не нужен.
 - **`<ul>/<li>` со ссылками — всегда заменять на `<div>`-список**: тема применяет к `ul li a` агрессивные стили (float/flex), ни `display:inline`, ни `!important` не помогают — текст расплывается в две колонки. Единственный надёжный фикс: `<div>`-список. Тема не применяет стили к `<div>`. **Правило: если в `<ul>` есть хотя бы одна `<a>` — весь список заменять на `<div>`-список.** Также: `<div>` внутри flex-контейнера получает margin от темы — обязательно `margin:0 !important` на каждом пункте:

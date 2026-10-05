@@ -6,7 +6,7 @@ Usage:
   python3 keyso_client.py check
   python3 keyso_client.py profile <domain> [--base msk]
   python3 keyso_client.py competitors <domain> [--limit 30] [--base msk]
-  python3 keyso_client.py keys <domain> [--per-page 1000] [--max-pages 10] [--base msk]
+  python3 keyso_client.py keys <domain> [--per-page 500] [--max-pages 20] [--base msk]
   python3 keyso_client.py gap <our_domain> <comp1> [<comp2> ...] [--base msk] [--top 1000]
   python3 keyso_client.py lost <domain> [--limit 500] [--base msk]
 
@@ -40,7 +40,7 @@ BASE_URL = "https://api.keys.so"
 # Актуальные эндпоинты keys.so (проверено 2026-04-10 по apidoc.keys.so)
 API_PATHS = {
     "profile": "/report/simple/domain_dashboard",
-    "competitors": "/report/simple/organic/competitors",
+    "competitors": "/report/simple/organic/concurents",
     "keys": "/report/simple/organic/keywords",
     "lost": "/report/simple/organic/keywords/lost",
 }
@@ -101,7 +101,7 @@ def normalize_phrase(phrase: str) -> str:
     return " ".join(phrase.lower().replace("ё", "е").split())
 
 
-def fetch_all_keys(domain: str, token: str, base: str, per_page: int = 1000, max_pages: int = 10) -> list:
+def fetch_all_keys(domain: str, token: str, base: str, per_page: int = 500, max_pages: int = 20) -> list:
     """
     Выгружает органические ключи домена постранично.
     Останавливается на last_page из метаданных, пустой странице или max_pages.
@@ -113,7 +113,9 @@ def fetch_all_keys(domain: str, token: str, base: str, per_page: int = 1000, max
     while page <= max_pages:
         result = api_request(
             API_PATHS["keys"],
-            {"domain": domain, "base": base, "per_page": per_page, "page": page},
+            # Без явной сортировки keys.so листает нестабильно: страницы дублируют
+            # друг друга и теряют строки (18.09.2026: 7305 строк, из них 4881 уникальных).
+            {"domain": domain, "base": base, "per_page": per_page, "page": page, "sort": "word|asc"},
             token,
         )
         if result["status"] != 200:
@@ -248,14 +250,14 @@ def main():
 
     p_keys = sub.add_parser("keys", help="Органические ключи домена (все страницы)")
     p_keys.add_argument("domain")
-    p_keys.add_argument("--per-page", type=int, default=1000)
-    p_keys.add_argument("--max-pages", type=int, default=10, help="Потолок страниц пагинации (default 10 = до 10000 ключей)")
+    p_keys.add_argument("--per-page", type=int, default=500)
+    p_keys.add_argument("--max-pages", type=int, default=20, help="Потолок страниц пагинации (default 20 × 500 = до 10000 ключей; keys.so принимает per_page не больше 500)")
     p_keys.add_argument("--base", default=DEFAULT_BASE, help=BASE_HELP)
 
     p_gap = sub.add_parser("gap", help="Gap-ключи: есть у конкурентов, нет у нас (set-difference по keys)")
     p_gap.add_argument("our_domain")
     p_gap.add_argument("competitors", nargs="+")
-    p_gap.add_argument("--per-page", type=int, default=1000)
+    p_gap.add_argument("--per-page", type=int, default=500)
     p_gap.add_argument("--max-pages", type=int, default=10, help="Потолок страниц пагинации на домен")
     p_gap.add_argument("--top", type=int, default=1000, help="Сколько gap-ключей вывести (сортировка по частоте)")
     p_gap.add_argument("--base", default=DEFAULT_BASE, help=BASE_HELP)

@@ -5,6 +5,8 @@ description: Дизайнер инфографики для статей — д�
 
 # Designer — инфографика для статей
 
+> **Модель (Claude Code): Claude Opus 5.5.** Скилл и все его субагенты работают на Opus 5.5: при запуске субагентов указывать `model: "opus"`, на sonnet и haiku не понижать. Если Opus недоступен (ошибка авторизации 403), повторить запуск или остановиться и сообщить; молча другую модель не брать. На сервер (Codex) это правило не действует.
+
 ## Шаг 0 — Определить режим
 
 **Определить проект** — по аргументу `project=` (путь или имя папки проекта в рабочей директории), дефолт `factor`. НЕ полагаться на `os.getcwd()` — cwd между вызовами не гарантирован.
@@ -64,7 +66,7 @@ else:
 - `color_accent`, `color_bg`, `color_text`, `font` — токены для HTML-режима
 
 Дефолты Фактора (если project.md нет):
-- `wp_url` = `https://factor-prodazh.ru`
+- `wp_url` = `https://yoursite.ru`
 - `wp_auth` — учётку читать из `<project>/project.md` (поле `wp_auth`) или `.env`; секреты в тексте скилла не хранить
 - `wp_post_type` = `blog`
 - `color_accent` = `#CC955B` / `color_bg` = `#ECEADF` / `color_text` = `#252525` / `font` = `Raleway`
@@ -339,7 +341,7 @@ lightbox). Наступали дважды на emailsoldiers.ru — инцид�
 шаблоне (2026-09-23, прогон `20260923-ems-brenda-kannibalizaciya`, найдено на `/publisher prepare`
 через `selfcheck.py`, не здесь).
 
-**Фактор (`has_project=False`)** — тема `factor-prodazh.ru` ждёт lightbox-обвязку:
+**Фактор (`has_project=False`)** — тема `yoursite.ru` ждёт lightbox-обвязку:
 ```html
 <div style="margin:32px 0; text-align:center;">
 <a class="blog-gallery" href="{url}" data-fslightbox="lightbox" title="{alt}">
@@ -430,6 +432,8 @@ else:
 - между REST-запросами держать паузу 1–2 с (конвейер делает 10–20 запросов подряд);
 - если в ответ пришла HTML-страница вместо JSON — это бан-страница WAF: остановиться и подождать, не долбить.
 
+
+**Цвета рядов (05.10.2026, возврат владельца «почти одинаковые цвета по годам, сливаются»).** Два ряда на одном графике (годы, до и после, по телефону и через интернет) различаются светлотой, а не двумя тёмными тонами: светлый оттенок акцента `color-mix(in srgb,var(--accent) 38%,var(--paper))` и тёмный акцент. Ряды по мессенджерам рисуются их цветами: WhatsApp* #25D366, Telegram #2AABEE, MAX #8A2BFF. Типы графиков чередовать: линии для рядов по месяцам, столбики, точки, крупные цифры, полосы (память journal-chart-variety).
 
 **Общие:**
 - WP CPT `blog` → endpoint `/wp/v2/blog/{id}`, НЕ `/wp/v2/posts/{id}`

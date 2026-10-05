@@ -17,7 +17,7 @@ python3 ~/.claude/skills/link-check/link_checker.py <домен> [max_pages] [--
 - `--workers N` — параллелизм (дефолт 8; для слабых/нестабильных серверов ставь 4)
 
 ## Как действовать
-1. Уточнить домен(ы). Дефолт-список клиента: `https://crmgroup.ru`, `https://emailsoldiers.ru` (+ при необходимости factor-prodazh.ru, agentiq.ru).
+1. Уточнить домен(ы). Дефолт-список клиента: `https://crmgroup.ru`, `https://emailsoldiers.ru` (+ при необходимости yoursite.ru, agentiq.ru).
 2. Прогнать сначала внутренние ссылки (быстро, главное по SEO/UX). Потом по желанию `--external`.
 3. ⚠️ **Хрупкие серверы беречь:** emailsoldiers (был disk-инцидент) — `--workers 4`, кап 200-300 страниц, не гнать весь сайт залпом.
 4. Большой прогон — пускать в фоне (`run_in_background`), это нормально.

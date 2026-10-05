@@ -19,7 +19,7 @@ except ImportError:
 
 
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (compatible; SEO-Audit/1.0; +https://factor-prodazh.ru)"
+    "User-Agent": "Mozilla/5.0 (compatible; SEO-Audit/1.0; +https://yoursite.ru)"
 }
 
 

@@ -499,13 +499,14 @@ body {{
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--muted);
-  white-space: nowrap;
 }}
 .md table td {{
   padding: 9px 12px;
   border-bottom: 1px solid var(--border-soft);
   vertical-align: top;
 }}
+/* длинные URL в ячейках иначе растягивают таблицу шире страницы */
+.md table td code {{ overflow-wrap: anywhere; }}
 .md table tr:last-child td {{ border-bottom: none; }}
 .md table tr:hover td {{ background: #fafbfc; }}
 
@@ -545,7 +546,8 @@ footer .files {{
   .hero h1 {{ font-size: 24px; }}
   .section {{ padding: 24px 20px; }}
   .section h2.section-title {{ font-size: 20px; }}
-  .md table {{ font-size: 11.5px; }}
+  /* широкая таблица прокручивается сама, а не растягивает страницу */
+  .md table {{ font-size: 11.5px; display: block; overflow-x: auto; }}
   .md table th, .md table td {{ padding: 7px 8px; }}
 }}
 
