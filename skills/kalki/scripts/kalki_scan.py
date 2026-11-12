@@ -14,22 +14,24 @@ PAT = os.path.join(HERE, '..', 'references', 'patterns.md')
 
 def load_patterns():
     txt = io.open(PAT, encoding='utf-8').read()
-    m = re.search(r'```patterns\n(.*?)```', txt, re.S)
+    # всё после открытия блока: агенты дописывают строки и ниже закрывающих кавычек
+    i = txt.find('```patterns\n')
     out = []
-    for ln in (m.group(1).split('\n') if m else []):
+    for ln in (txt[i + len('```patterns\n'):].split('\n') if i >= 0 else []):
         ln = ln.strip()
-        if not ln or ln.startswith('#'):
+        if not ln or ln.startswith(('#', '-', '`')):
             continue
-        parts = [p.strip() for p in ln.split('|')]
-        # regex может содержать «|»: склеиваем всё, пока не найдём разделитель-пояснение с «calque|…»
-        # формат строки: <regex>|<почему>|<как надо>|<дата>; regex экранирует «|» как \|, поэтому делим по неэкранированным
+        # формат строки: <regex>|<почему>|<как надо>|<дата>; в regex бывает «|» (альтернативы),
+        # поэтому три последних поля отрезаем справа, а всё, что левее, это regex
         parts = re.split(r'(?<!\\)\|', ln)
+        if len(parts) >= 4:
+            parts = ['|'.join(parts[:-3])] + parts[-3:]
         parts = [p.strip() for p in parts]
         if len(parts) < 3:
             continue
         rx, why, fix = parts[0], parts[1], parts[2]
         try:
-            out.append((re.compile(rx), why, fix))
+            out.append((re.compile(rx, re.I), why, fix))
         except re.error:
             continue
     return out
