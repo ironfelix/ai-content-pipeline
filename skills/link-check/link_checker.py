@@ -24,6 +24,7 @@ Usage:
 import sys, re, ssl, json, gzip, time, threading
 import urllib.request, urllib.parse, urllib.error
 import concurrent.futures, collections
+from html.parser import HTMLParser
 
 UA = "Mozilla/5.0 (compatible; link-check/1.0)"
 
@@ -125,13 +126,47 @@ def sitemap_urls(domain):
     return sorted(urls)
 
 
+class _LinkParser(HTMLParser):
+    """Ссылки через настоящий парсер, а не регулярку.
+
+    ⚠️ Регулярка href=["']…["'] молча пропускала минифицированный HTML без кавычек
+    (href=/uslugi/) — на artis-dental.ru 18.11.2026 чекер нашёл 0 ссылок и сказал «всё чисто».
+    HTMLParser понимает атрибуты без кавычек и сам раскодирует &amp;.
+    """
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.found = []
+
+    def handle_starttag(self, tag, attrs):
+        a = dict(attrs)
+        if a.get("href"):
+            self.found.append(a["href"])
+        if tag == "img":                       # битые картинки тоже заявлены в скилле
+            if a.get("src"):
+                self.found.append(a["src"])
+            for part in (a.get("srcset") or "").split(","):
+                u = part.strip().split(" ")[0]
+                if u:
+                    self.found.append(u)
+
+    handle_startendtag = handle_starttag
+
+
 def extract_links(html, base):
+    p = _LinkParser()
+    try:
+        p.feed(html)
+        p.close()
+    except Exception:
+        pass                                   # битый HTML: берём то, что успели разобрать
     out = set()
-    for m in re.finditer(r'href=["\']([^"\']+)["\']', html):
-        href = m.group(1).strip()
-        if href.startswith(("mailto:", "tel:", "javascript:", "data:", "#")):
+    for href in p.found:
+        href = href.strip()
+        if not href or href.startswith(("mailto:", "tel:", "javascript:", "data:", "#")):
             continue
-        full = urllib.parse.urljoin(base, href).split("#")[0].rstrip("/")
+        # ⚠️ слэш на конце НЕ срезаем: раньше rstrip("/") проверял другой адрес
+        # и давал ложные 404 на сайтах, где /page и /page/ отвечают по-разному
+        full = urllib.parse.urljoin(base, href).split("#")[0]
         if full.startswith("http") and not IGNORE.search(full):
             out.add(full)
     return out
@@ -189,9 +224,20 @@ def main():
     with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:
         list(ex.map(crawl, pages))
 
+    crawled = len(pages) - len(bad_pages)
+    if crawled and not src:
+        # ⚠️ раньше здесь молча выходило «✅ битых ссылок не найдено» (artis-dental.ru, 18.11.2026)
+        print(f"\n🔴 Со {crawled} страниц не извлечено ни одной ссылки — разбор HTML не сработал "
+              f"(JS-рендер, защита от ботов или нестандартная вёрстка). Результат НЕДЕЙСТВИТЕЛЕН.")
+        sys.exit(2)
+    if crawled and len(src) < crawled:
+        print(f"⚠️ Ссылок ({len(src)}) меньше, чем страниц ({crawled}) — похоже на неполный разбор, проверь вручную")
+
+    def same_site(netloc):
+        return netloc.removeprefix("www.") == host.removeprefix("www.")
     links = list(src)
     if not external:
-        links = [l for l in links if urllib.parse.urlparse(l).netloc == host]
+        links = [l for l in links if same_site(urllib.parse.urlparse(l).netloc)]
     print(f"Уникальных ссылок к проверке: {len(links)}")
 
     broken = []

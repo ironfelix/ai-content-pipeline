@@ -298,3 +298,44 @@
 (?i)\bтакой разброс не объясняют\b|prices don't explain such a spread|«разброс получается не из-за цен»|09.11.2026, skolko-stoit-otkryt-stomatologiyu
 (?i)\bрешает по заявлению\b|decides on the application|«рассматривает заявление»|09.11.2026, skolko-stoit-otkryt-stomatologiyu
 (?i)\bмож(но|ете) поставить в Таблиц|put your numbers in the sheet|«подставить в Таблицу»|09.11.2026, skolko-stoit-otkryt-stomatologiyu
+(?i)\bкандидат\w* на расставание\b|a candidate for parting ways|«кого увольняем», «с кем расстаёмся»|17.11.2026, crmgroup-stratsession
+(?i)\bост(ал|ала)с[ья] без владельца\b|was left without an owner|«за это никто не отвечает»|17.11.2026, crmgroup-stratsession
+(?i)\bсто(ит|ят) (задачей|как действие|метрикой)\b|stands as a task|«записали задачей», «завели метрику»|17.11.2026, crmgroup-stratsession
+(?i)\bпровести коммуникацию\b|hold a communication|«поговорить», «объявить»|17.11.2026, crmgroup-stratsession
+(?i)\bне опция\b|not an option|«отказаться нельзя»|17.11.2026, crmgroup-stratsession
+(?i)\bразрез по отделам\b|breakdown by department|«сравнить ответы по отделам»|17.11.2026, crmgroup-stratsession
+(?i)\bвыведен\w* на блог\b|rolled out to the blog|«запустили в блоге»|17.11.2026, crmgroup-stratsession
+(?i)\b(не )?залогирован|логируется\b|is logged|«отметили в системе», «сотрудники отмечают»|17.11.2026, crmgroup-stratsession
+(?i)\bна горизонте \d|in the horizon of N months|«на сроке 6–12 месяцев»|17.11.2026, crmgroup-stratsession
+(?i)\bв моменте\b|in the moment|«сейчас», «на месте»|17.11.2026, crmgroup-stratsession
+(?i)\bоткрывающий круг\b|opening circle|«круг на старте»|17.11.2026, crmgroup-stratsession
+(?i)\bпривезённ\w+ снаружи\b|brought in from outside|«снаружи не привозили»|17.11.2026, crmgroup-stratsession
+(?i)\bдерж(ит|ать) координацию\b|holds coordination|«координирует работу»|17.11.2026, crmgroup-stratsession
+(?i)\bсузил\w* фокус\b|narrowed the focus|«оставил себе меньше»|17.11.2026, crmgroup-stratsession
+(?i)\bсдвинуть влево\b|shift left|«решать раньше»|17.11.2026, crmgroup-stratsession
+(?i)\bобраз(а|у)? желаемого\b|the image of the desired|«желаемая картина»|17.11.2026, crmgroup-stratsession
+(?i)\bкритическ(ая|ой) зон[аеы]\b|critical zone|«опасный уровень»|17.11.2026, crmgroup-stratsession
+(?i)\bфинальное решение\b|final decision|«окончательное решение»|17.11.2026, crmgroup-stratsession
+(?i)\b(держит|держат)\s+\d+\s+(спроса|запрос\w*|показ\w*)|calque: holds N of demand|«у конкурента по теме N показов в месяц»|17.11.2026, страница статуса агентства
+(?i)\bпо запросу ходят\b|calque: buyers walk this query|«этот запрос вводят покупатели»|17.11.2026, страница статуса
+(?i)\bне набира(ет|ют) вес\b|жаргон SEO: gain weight|«поиск их не поднимает»|17.11.2026, страница статуса
+(?i)\bтян(ет|ут) позиции\b|calque: pull rankings down|«мешают друг другу и теряют позиции»|17.11.2026, страница статуса
+(?i)\bне дал[аои]? движения\b|calque: produced no movement|«позиции не выросли»|17.11.2026, страница статуса
+(?i)\bприводят (ИИ-)?ответ\b|calque: queries lead to an answer|«по скольким запросам ИИ упоминает сайт»|17.11.2026, страница статуса
+(?i)\b(последний|крайний) тик\b|жаргон разработчиков: last tick|«очередь проверена N мин назад»|17.11.2026, страница статуса
+(?i)\bтир[ -]?\d\b|жаргон: tier 0|«без вас», «уровень согласования»|17.11.2026, страница статуса
+(?i)\bзакрыта страницей\b|calque: covered by page|«у нас уже есть страница»|17.11.2026, страница статуса
+(?i)\bкликать не по чему\b|calque: nothing to click on|«нажать не на что»|17.11.2026, страница статуса
+(?i)\bкод: свежий\b|calque: code: fresh|«код на сервере совпадает с хранилищем»|17.11.2026, страница статуса
+(?i)\bснял[аи]? выдачу\b|жаргон SEO: scraped the SERP|«проверили, что Яндекс показывает по запросу»|18.11.2026, отчёт prime-med
+(?i)\bпрокси-проверк\w*|\bэто прокси\b|жаргон: proxy check|«проверка косвенная: …»|18.11.2026, отчёт prime-med
+(?i)\|\s*контент(\s*\+|\s*\|)|calque: content (as a role)|«автор текстов», «редактор»|18.11.2026, отчёт prime-med
+(?i)\bбольшого рычага\b|\bглавный рычаг\b|calque: big lever|«одной правки, которая решит всё, нет»|18.11.2026, отчёт prime-med
+(?i)\bделят выдачу\b|calque: share the SERP|«конкурируют в выдаче с основным сайтом»|18.11.2026, отчёт prime-med
+(?i)\bвырастет похоже\b|calque: will grow similarly|«рост будет сопоставимым»|18.11.2026, отчёт prime-med
+(?i)\bвнешний сигнал\b|calque: external signal|«по этому … судит о клинике»|18.11.2026, отчёт prime-med
+(?i)\bповторяют\s+\S+\s+цифры буквально\b|calque: repeat literally|«повторяют дословно»|18.11.2026, отчёт prime-med
+(?i)\bсвести в один список\b|calque: consolidate into one list|«привести к одним значениям»|18.11.2026, отчёт prime-med
+(?i)\bвизит\w* получ\w+ ответ\b|calque: visits will get an answer|«ответ получат посетители»|18.11.2026, отчёт prime-med
+(?i)\bработ[ыа] да(ют|ёт|дут) (основную часть )?рост|calque: works deliver growth|«большую часть роста дадут задачи»|18.11.2026, отчёт prime-med
+(?i)\bидут текстом\b|calque: prices go as text|«написаны в тексте»|18.11.2026, отчёт prime-med
